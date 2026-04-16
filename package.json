@@ -21,7 +21,6 @@
     "start": "node dist/server.js",
     "preview": "vite preview",
     "deploy": "bash deploy.sh",
-    "prepare": "npm run build",
     "postinstall": "chmod +x node_modules/node-pty/prebuilds/darwin-arm64/spawn-helper 2>/dev/null || true"
   },
   "keywords": ["dev", "dashboard", "process-compose", "nix", "devenv", "monitor"],
