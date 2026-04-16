@@ -108,61 +108,19 @@ function parseProcessesNix(content) {
     }
     return result;
 }
-// ── Built-in service definitions ───────────────────────────────────────────
-function serviceProcessDefs(binDir, stateDir) {
-    return [
-        {
-            name: 'postgres',
-            exec: [
-                `PGDATA="${stateDir}/postgres"`,
-                `mkdir -p /tmp/devdash-pg`,
-                `[ -d "$PGDATA/global" ] || ${binDir}/initdb -D "$PGDATA" --no-locale --encoding=UTF8`,
-                `exec ${binDir}/postgres -D "$PGDATA" -c unix_socket_directories=/tmp/devdash-pg -c listen_addresses=localhost -p 5432 -c log_timezone=Europe/Paris`,
-            ].join('\n'),
-            depends_on: {},
-            health_check: {
-                type: 'exec',
-                command: `${binDir}/pg_isready -h localhost -p 5432 -d postgres`,
-                initial_delay_seconds: 1,
-                period_seconds: 2,
-                failure_threshold: 15,
-            },
-        },
-        {
-            name: 'redis',
-            exec: `exec ${binDir}/redis-server --port 6379 --bind 127.0.0.1 --save ""`,
-            depends_on: {},
-            health_check: {
-                type: 'exec',
-                command: `${binDir}/redis-cli -p 6379 ping`,
-                initial_delay_seconds: 1,
-                period_seconds: 2,
-                failure_threshold: 10,
-            },
-        },
-        {
-            name: 'mailpit',
-            exec: `exec ${binDir}/mailpit --smtp-auth-allow-insecure --smtp-auth-accept-any`,
-            depends_on: {},
-            health_check: {
-                type: 'exec',
-                command: `${binDir}/mailpit readyz`,
-                initial_delay_seconds: 1,
-                period_seconds: 2,
-                failure_threshold: 10,
-            },
-        },
-    ];
-}
 // ── Public API ─────────────────────────────────────────────────────────────
-export function getProcessDefs(projectDir, injectBuiltins = false) {
+export function getProcessDefs(projectDir, infra = []) {
     const nixContent = readFileSync(join(projectDir, 'processes.nix'), 'utf-8');
     const fromNix = parseProcessesNix(nixContent);
-    if (!injectBuiltins)
-        return fromNix;
-    const binDir = join(projectDir, '.devenv/profile/bin');
-    const stateDir = join(projectDir, '.devenv/state');
-    return [...serviceProcessDefs(binDir, stateDir), ...fromNix];
+    const fromInfra = infra.map(i => ({
+        name: i.name,
+        exec: i.exec,
+        working_dir: i.working_dir,
+        depends_on: i.depends_on ?? {},
+        health_check: i.health_check,
+        brew: i.brew,
+    }));
+    return [...fromInfra, ...fromNix];
 }
 export function needsRegen(opts) {
     const { projectDir, outputPath } = opts;
@@ -177,15 +135,13 @@ export function needsRegen(opts) {
     return false;
 }
 export function generate(opts) {
-    const { projectDir, outputPath, injectBuiltins } = opts;
-    const defs = getProcessDefs(projectDir, injectBuiltins);
-    const binDir = join(projectDir, '.devenv/profile/bin');
+    const { projectDir, outputPath, infra } = opts;
+    const defs = getProcessDefs(projectDir, infra);
     const lines = ['version: "0.5"', 'processes:'];
     for (const def of defs) {
-        const script = `export PATH="${binDir}:$PATH"\n${def.exec}`;
         lines.push(`  ${def.name}:`);
         lines.push(`    command: >-`);
-        lines.push(`      sh -c ${JSON.stringify(script)}`);
+        lines.push(`      sh -c ${JSON.stringify(def.exec)}`);
         if (def.working_dir)
             lines.push(`    working_dir: ${join(projectDir, def.working_dir)}`);
         if (Object.keys(def.depends_on).length) {

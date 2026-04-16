@@ -1,5 +1,6 @@
 import { existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
+import type { InfraDef } from '../gen.js'
 import { PROJECT_DIR } from './env.js'
 
 export interface MatchSpec {
@@ -42,6 +43,7 @@ export interface DevDashConfig {
   orphans: OrphanPattern[]
   readyPatterns: string[]
   s3?: S3Config
+  infra: InfraDef[]
 }
 
 const BUILTIN_GROUPS: GroupDef[] = [
@@ -88,6 +90,7 @@ export function loadConfig(): DevDashConfig {
     orphans: user.orphans ?? [],
     readyPatterns: [...BUILTIN_READY_PATTERNS, ...(user.readyPatterns ?? [])],
     s3: user.s3,
+    infra: user.infra ?? [],
   }
   return cached
 }

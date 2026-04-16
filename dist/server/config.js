@@ -42,6 +42,7 @@ export function loadConfig() {
         orphans: user.orphans ?? [],
         readyPatterns: [...BUILTIN_READY_PATTERNS, ...(user.readyPatterns ?? [])],
         s3: user.s3,
+        infra: user.infra ?? [],
     };
     return cached;
 }

@@ -9,7 +9,7 @@ export class ProcessManager {
     defs = [];
     load() {
         const cfg = loadConfig();
-        this.defs = getProcessDefs(PROJECT_DIR, cfg.devenv);
+        this.defs = getProcessDefs(PROJECT_DIR, cfg.infra);
         for (const def of this.defs) {
             if (!this.states.has(def.name)) {
                 this.states.set(def.name, { def, status: 'stopped', logs: [], restarts: 0 });
@@ -144,6 +144,9 @@ export class ProcessManager {
             s.exitCode = code ?? -1;
             s.status = code === 0 ? 'completed' : 'failed';
             log(`[devdash] ${name} exited with code ${code}`);
+            if (code !== 0 && def.brew) {
+                log(`[devdash] ${name} crashed — if the binary is missing, try: brew install ${def.brew}`);
+            }
         };
         child.stdout?.on('data', onData);
         child.stderr?.on('data', onData);
