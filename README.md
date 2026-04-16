@@ -62,6 +62,14 @@ DevDash runs out of the box with sensible defaults. To customize, drop a `devdas
       "health_check": { "type": "exec", "command": "$(brew --prefix postgresql@16)/bin/pg_isready -h localhost -p 5432", "period_seconds": 2, "failure_threshold": 15 }
     }
   ],
+  "utils": [
+    {
+      "name": "pgweb",
+      "brew": "pgweb",
+      "exec": "exec pgweb --bind=localhost --listen=8091 --sessions",
+      "depends_on": { "postgres": { "condition": "process_healthy" } }
+    }
+  ],
   "s3": {
     "endpoint": "https://s3.example.com",
     "region": "us-east-1",
@@ -83,6 +91,7 @@ DevDash runs out of the box with sensible defaults. To customize, drop a `devdas
 | `orphans` | `pgrep -f` patterns for processes that may outlive DevDash (e.g. crashed children). Built-ins for `postgres`/`redis`/`mailpit` are always included. |
 | `readyPatterns` | Regex strings matched against process stdout/stderr to flip status to `healthy`. Merged with sensible built-ins (Vite, Nest, Next, Prisma Studio, etc.). |
 | `infra` | User-declared infra processes (postgres, redis, minio, mailpit, ...). Each entry: `name`, `exec`, optional `brew` (hint shown when the process crashes), `working_dir`, `depends_on`, `health_check`. Merged into the process list alongside `processes.nix` entries. The `/shell/start/core` endpoint starts these. |
+| `utils` | Same shape as `infra`, but auto-grouped under "Utils" and **not** included in `/shell/start/core`. For dev-only tools (pgweb, prisma studio, ...) that should start on demand or via `depends_on`. |
 | `s3` | Optional. If present, the S3 browser tab is active. No defaults — credentials live here only. |
 
 ## Custom commands
