@@ -17,8 +17,8 @@ import { setGroups } from './groups'
 import type { Process, CustomCommands } from './types'
 
 // ── Config bootstrap ──────────────────────────────────────────────────────
-interface PublicConfig { name: string; groups: Array<{ id: string; label: string; match: Record<string, unknown> }>; hasS3: boolean }
-const config: PublicConfig = await fetch('/api/config').then(r => r.json()).catch(() => ({ name: 'DevDash', groups: [], hasS3: false }))
+interface PublicConfig { name: string; groups: Array<{ id: string; label: string; match: Record<string, unknown> }>; hasS3: boolean; devenv: boolean }
+const config: PublicConfig = await fetch('/api/config').then(r => r.json()).catch(() => ({ name: 'DevDash', groups: [], hasS3: false, devenv: false }))
 if (config.groups.length) setGroups(config.groups as Parameters<typeof setGroups>[0])
 document.title = config.name
 
@@ -27,6 +27,7 @@ const app = document.getElementById('app')!
 app.innerHTML = `
   <header>
     <h1>${config.name}</h1>
+    <span class="badge" title="PATH prepend mode (cfg.devenv)">${config.devenv ? 'devenv' : 'no-devenv'}</span>
     <span class="badge" id="running-count">— running</span>
     <div id="starting-procs" style="display:flex;gap:4px;flex-wrap:wrap"></div>
     <span class="badge devenv-badge" id="devenv-badge">checking…</span>
