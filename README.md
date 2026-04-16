@@ -7,10 +7,11 @@ Built with Vite + Hono. Runs on `localhost:3280`.
 ## Install
 
 ```sh
-npm install -g @ncl/devdash
-# or
-yarn global add @ncl/devdash
+git clone https://github.com/nicolasclaisse/devdash ~/code/devdash
+npm install -g ~/code/devdash
 ```
+
+> Note: `npm install -g github:nicolasclaisse/devdash` is unreliable — node-pty's postinstall fails inside npm's git clone tmp dir. Cloning + installing from a local path is the workaround.
 
 ## Quickstart
 
@@ -50,6 +51,14 @@ DevDash runs out of the box with sensible defaults. To customize, drop a `devdas
   "readyPatterns": [
     "My custom ready marker"
   ],
+  "infra": [
+    {
+      "name": "postgres",
+      "brew": "postgresql@16",
+      "exec": "export PATH=\"$(brew --prefix postgresql@16)/bin:$PATH\"\nPGDATA=\".devdash/postgres\"\nmkdir -p /tmp/devdash-pg\n[ -d \"$PGDATA/global\" ] || initdb -D \"$PGDATA\" --no-locale --encoding=UTF8\nexec postgres -D \"$PGDATA\" -c unix_socket_directories=/tmp/devdash-pg -c listen_addresses=localhost -p 5432",
+      "health_check": { "type": "exec", "command": "$(brew --prefix postgresql@16)/bin/pg_isready -h localhost -p 5432", "period_seconds": 2, "failure_threshold": 15 }
+    }
+  ],
   "s3": {
     "endpoint": "https://s3.example.com",
     "region": "us-east-1",
@@ -65,11 +74,12 @@ DevDash runs out of the box with sensible defaults. To customize, drop a `devdas
 | Field | Purpose |
 |---|---|
 | `name` | Displayed in the header and browser title. |
-| `devenv` | If `true`, DevDash injects built-in postgres/redis/mailpit services configured for a `devenv`-managed project (requires `.devenv/profile/bin`). Default: `false`. |
+| `devenv` | If `true`, prepends `.devenv/profile/bin` to the PATH of every spawned process (so processes can find devenv-installed binaries without absolute paths). Default: `false`. |
 | `groups` | UI grouping for the sidebar. Each entry has a `match` spec: `in` (array), `startsWith`, `endsWith`, `equals`, or `regex`. Groups are evaluated in order; first match wins. |
 | `ports` | Labels for known ports in the "Ports" panel. Any additional listening port on the machine is shown with its command name. |
 | `orphans` | `pgrep -f` patterns for processes that may outlive DevDash (e.g. crashed children). Built-ins for `postgres`/`redis`/`mailpit` are always included. |
 | `readyPatterns` | Regex strings matched against process stdout/stderr to flip status to `healthy`. Merged with sensible built-ins (Vite, Nest, Next, Prisma Studio, etc.). |
+| `infra` | User-declared infra processes (postgres, redis, minio, mailpit, ...). Each entry: `name`, `exec`, optional `brew` (hint shown when the process crashes), `working_dir`, `depends_on`, `health_check`. Merged into the process list alongside `processes.nix` entries. The `/shell/start/core` endpoint starts these. |
 | `s3` | Optional. If present, the S3 browser tab is active. No defaults — credentials live here only. |
 
 ## Custom commands
@@ -114,15 +124,22 @@ DevDash parses the `processes` attrset in a `processes.nix` at the project root.
 
 Supported attributes per process: `exec` (multiline string), `process-compose.working_dir`, `process-compose.depends_on.<name>.condition`, `process-compose.readiness_probe` (`http_get` or `exec`, with `initial_delay_seconds` / `period_seconds` / `failure_threshold`).
 
-## Native macOS wrapper
+## Native macOS app
 
-A tiny Swift wrapper (`DevDash.app`) ships alongside — a WebKit window pointing at `localhost:3280` with standard keyboard shortcuts. Build and install it to `/Applications` with:
+A tiny Swift wrapper (`DevDash.app`) ships alongside — a WebKit window pointing at `localhost:3280` with standard keyboard shortcuts. To install one for the project in your current dir:
 
 ```sh
-yarn deploy
+cd ~/project/my-stack
+devdash --app
 ```
 
-This requires `swiftc` (bundled with Xcode Command Line Tools).
+This installs `/Applications/DevDash - my-stack.app`, hardcoded to launch with `DEVDASH_PROJECT=~/project/my-stack`. You can install one app per env this way — they coexist in `/Applications/` (`DevDash - foo.app`, `DevDash - bar.app`, …). Override the label with `--name`:
+
+```sh
+devdash --app --name "Production"
+```
+
+Requires `swiftc` (bundled with Xcode Command Line Tools).
 
 ## Local dev (hacking on DevDash itself)
 
