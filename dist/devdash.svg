@@ -1,0 +1,38 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <!-- Background -->
+  <rect width="1024" height="1024" rx="230" fill="#0d0f14"/>
+
+  <!-- All gauge elements share center: cx=512, cy=600 -->
+
+  <!-- Gray dial arc -->
+  <path d="M 152 600 A 360 360 0 0 1 872 600"
+        fill="none" stroke="#2a2d3a" stroke-width="64" stroke-linecap="round"/>
+
+  <!-- Tick marks -->
+  <g stroke="#4a4f60" stroke-width="7" stroke-linecap="round">
+    <line x1="152" y1="600" x2="118" y2="600"/>
+    <line x1="207" y1="420" x2="191" y2="392"/>
+    <line x1="332" y1="291" x2="318" y2="265"/>
+    <line x1="512" y1="240" x2="512" y2="210"/>
+    <line x1="692" y1="291" x2="706" y2="265"/>
+    <line x1="817" y1="420" x2="833" y2="392"/>
+    <line x1="872" y1="600" x2="906" y2="600"/>
+  </g>
+
+  <!-- Purple arc — left half + a bit -->
+  <path d="M 148 600 A 364 364 0 0 1 668 278"
+        fill="none" stroke="#6366f1" stroke-width="30" stroke-linecap="round"/>
+
+  <!-- Needle -->
+  <line x1="512" y1="600" x2="680" y2="292"
+        stroke="white" stroke-width="16" stroke-linecap="round"/>
+
+  <!-- Pivot -->
+  <circle cx="512" cy="600" r="24" fill="#0d0f14" stroke="#6366f1" stroke-width="7"/>
+  <circle cx="512" cy="600" r="9" fill="#6366f1"/>
+
+  <!-- DASH label -->
+  <text x="512" y="760" text-anchor="middle"
+        font-family="'Inter', 'Helvetica Neue', Arial, sans-serif"
+        font-weight="700" font-size="76" letter-spacing="10" fill="#e2e8f0">DASH</text>
+</svg>

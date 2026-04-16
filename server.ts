@@ -28,7 +28,7 @@ fsWatch(join(PROJECT_DIR, 'processes.nix'), () => scheduleReload('processes.nix'
 const configPath = join(PROJECT_DIR, 'devdash.config.json')
 try { fsWatch(configPath, () => scheduleReload('devdash.config.json')) } catch { /* config is optional */ }
 
-const CORE_PROCESSES = ['postgres', 'redis', 'mailpit']
+const getCoreProcesses = () => loadConfig().infra.map(i => i.name)
 const ALL_PROCESSES = pm.defs.map(d => d.name)
 
 // ── Hono app ───────────────────────────────────────────────────────────────
@@ -44,7 +44,7 @@ app.post('/shell/start', (c) => {
 })
 app.post('/shell/start/core', (c) => {
   pm.load()
-  pm.startMany(CORE_PROCESSES)
+  pm.startMany(getCoreProcesses())
   return c.json({ ok: true })
 })
 app.post('/shell/stop', (c) => { pm.stopAll(); return c.json({ ok: true }) })
