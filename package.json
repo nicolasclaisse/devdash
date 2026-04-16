@@ -1,6 +1,6 @@
 {
   "name": "@ncl/devdash",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "A web dashboard to launch and monitor a process-compose/nix dev environment — start/stop/restart processes, tail logs, browse ports, S3, system usage.",
   "type": "module",
   "bin": {
