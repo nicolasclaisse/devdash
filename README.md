@@ -67,7 +67,7 @@ DevDash runs out of the box with sensible defaults. To customize, drop a `devdas
       "name": "pgweb",
       "brew": "pgweb",
       "exec": "exec pgweb --bind=localhost --listen=8091 --sessions",
-      "depends_on": { "postgres": { "condition": "process_healthy" } }
+      "depends_on": { "postgres": "process_healthy" }
     }
   ],
   "s3": {
