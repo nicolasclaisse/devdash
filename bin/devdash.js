@@ -7,7 +7,7 @@ const here = dirname(fileURLToPath(import.meta.url))
 const pkgRoot = resolve(here, '..')
 
 const args = process.argv.slice(2)
-const appFlagIdx = args.findIndex(a => a === '--app' || a === '-a')
+const appFlagIdx = args.findIndex(a => a === '--app' || a === '-app' || a === '-a')
 
 if (appFlagIdx !== -1) {
   // Strip flags + their values to find the optional positional project dir
