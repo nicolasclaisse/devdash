@@ -7,8 +7,8 @@ const BUILTIN_GROUPS = [
     { id: 'other', label: 'Other', match: {} },
 ];
 const BUILTIN_PORTS = [
-    { port: 3280, label: 'devdash (vite)' },
-    { port: 3282, label: 'devdash (server)' },
+    { port: 52800, label: 'devdash (vite)' },
+    { port: 52802, label: 'devdash (server)' },
     { port: 5432, label: 'postgres' },
     { port: 6379, label: 'redis' },
     { port: 1025, label: 'mailpit SMTP' },

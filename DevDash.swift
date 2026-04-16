@@ -43,8 +43,12 @@ class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUIDe
         NSApp.activate(ignoringOtherApps: true)
     }
 
+    var baseURL: String {
+        ProcessInfo.processInfo.environment["DEVDASH_URL"] ?? "http://localhost:52800"
+    }
+
     func load() {
-        let url = URL(string: "http://localhost:3280")!
+        let url = URL(string: baseURL)!
         webView.load(URLRequest(url: url))
     }
 
@@ -67,7 +71,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUIDe
     }
 
     func applicationWillTerminate(_ notification: Notification) {
-        guard let url = URL(string: "http://localhost:3280/shell/shutdown") else { return }
+        guard let url = URL(string: baseURL + "/shell/shutdown") else { return }
         var req = URLRequest(url: url)
         req.httpMethod = "POST"
         req.timeoutInterval = 15

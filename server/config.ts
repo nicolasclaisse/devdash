@@ -53,8 +53,8 @@ const BUILTIN_GROUPS: GroupDef[] = [
 ]
 
 const BUILTIN_PORTS: PortDef[] = [
-  { port: 3280, label: 'devdash (vite)' },
-  { port: 3282, label: 'devdash (server)' },
+  { port: 52800, label: 'devdash (vite)' },
+  { port: 52802, label: 'devdash (server)' },
   { port: 5432, label: 'postgres' },
   { port: 6379, label: 'redis' },
   { port: 1025, label: 'mailpit SMTP' },

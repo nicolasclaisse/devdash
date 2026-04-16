@@ -1,7 +1,7 @@
 import { defineConfig } from 'vite'
 
-const serverPort = Number(process.env.VITE_SERVER_PORT ?? 3280)
-const vitePort   = Number(process.env.VITE_PORT ?? 3281)
+const serverPort = Number(process.env.VITE_SERVER_PORT ?? 52800)
+const vitePort   = Number(process.env.VITE_PORT ?? 52801)
 
 export default defineConfig({
   server: {

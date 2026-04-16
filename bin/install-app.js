@@ -23,6 +23,7 @@ export function installApp(pkgRoot, projectDir, opts = {}) {
   // Derive app name from project basename so multiple envs can coexist.
   // User can override with --name <label>.
   const label = opts.name ?? basename(projectDir)
+  const safeLabel = label.replace(/[^a-zA-Z0-9-]/g, '-')
   const displayName = `DevDash - ${label}`
   const target = `/Applications/${displayName}.app`
 
@@ -39,7 +40,7 @@ export function installApp(pkgRoot, projectDir, opts = {}) {
   const plist = readFileSync(plistPath, 'utf-8')
     .replace(/(<key>CFBundleName<\/key>\s*<string>)[^<]+/, `$1${displayName}`)
     .replace(/(<key>CFBundleDisplayName<\/key>\s*<string>)[^<]+/, `$1${displayName}`)
-    .replace(/(<key>CFBundleIdentifier<\/key>\s*<string>)[^<]+/, `$1com.nicolasclaisse.devdash.${label.replace(/[^a-zA-Z0-9-]/g, '-')}`)
+    .replace(/(<key>CFBundleIdentifier<\/key>\s*<string>)[^<]+/, `$1com.nicolasclaisse.devdash.${safeLabel}`)
   writeFileSync(plistPath, plist)
 
   console.log('[devdash] Compiling Swift wrapper...')
@@ -52,17 +53,29 @@ export function installApp(pkgRoot, projectDir, opts = {}) {
 export PATH="/usr/local/bin:/opt/homebrew/bin:/opt/homebrew/sbin:$HOME/.nvm/versions/node/$(ls $HOME/.nvm/versions/node 2>/dev/null | tail -1)/bin:$PATH"
 
 export DEVDASH_PROJECT=${JSON.stringify(projectDir)}
+LOG="/tmp/devdash-${safeLabel}.log"
 
-lsof -ti :3280 | xargs kill -9 2>/dev/null
+# Kill any previous devdash for THIS project (other instances on other ports keep running)
+pgrep -fl devdash | grep -F "$DEVDASH_PROJECT" | awk '{print $1}' | xargs kill 2>/dev/null
 sleep 1
+: > "$LOG"
 
-devdash "$DEVDASH_PROJECT" &>/tmp/devdash.log &
+devdash "$DEVDASH_PROJECT" &> "$LOG" &
 
+# Wait up to 120s for "devdash listening on http://localhost:XXX"
+PORT=""
 for i in $(seq 1 120); do
   sleep 1
-  if lsof -i :3280 -sTCP:LISTEN -t &>/dev/null; then break; fi
+  PORT=$(grep -m1 -oE 'devdash listening on http://localhost:[0-9]+' "$LOG" | grep -oE '[0-9]+$')
+  [ -n "$PORT" ] && break
 done
 
+if [ -z "$PORT" ]; then
+  osascript -e 'display alert "DevDash failed to start" message "See '"$LOG"' for details."' >/dev/null 2>&1
+  exit 1
+fi
+
+export DEVDASH_URL="http://localhost:$PORT"
 "$(dirname "$0")/DevDashNative"
 `
   const wrapperPath = join(macosDir, 'devdash')

@@ -2,7 +2,7 @@
 
 A lightweight web dashboard to launch and monitor a **process-compose / nix** dev environment. Start, stop, restart, and tail logs for any number of local processes defined in `processes.nix` — with per-group actions, orphan detection, port tracking, terminal, S3 browser, and system monitor.
 
-Built with Vite + Hono. Runs on `localhost:3280`.
+Built with Vite + Hono. Picks the first free port starting at `52800` (so multiple instances coexist).
 
 ## Install
 
@@ -27,7 +27,7 @@ Or point it at a specific directory:
 devdash ~/project/my-stack
 ```
 
-Open [http://localhost:3280](http://localhost:3280).
+DevDash logs the URL on startup (`devdash listening on http://localhost:52800`). Open it in a browser.
 
 ## Configuration
 
@@ -126,7 +126,7 @@ Supported attributes per process: `exec` (multiline string), `process-compose.wo
 
 ## Native macOS app
 
-A tiny Swift wrapper (`DevDash.app`) ships alongside — a WebKit window pointing at `localhost:3280` with standard keyboard shortcuts. To install one for the project in your current dir:
+A tiny Swift wrapper (`DevDash.app`) ships alongside — a WebKit window that connects to the devdash server (port chosen dynamically per instance). To install one for the project in your current dir:
 
 ```sh
 cd ~/project/my-stack
@@ -145,7 +145,7 @@ Requires `swiftc` (bundled with Xcode Command Line Tools).
 
 ```sh
 yarn install
-yarn dev-app    # server on 3282, vite on 3280
+yarn dev-app    # server on 52802, vite on 52800
 ```
 
 ## License
