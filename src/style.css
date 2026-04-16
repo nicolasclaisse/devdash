@@ -31,14 +31,6 @@ header h1 { font-size: 14px; font-weight: 600; letter-spacing: -0.3px; }
   font-size: 11px; background: var(--surface2); color: var(--muted);
   padding: 2px 8px; border-radius: 99px; border: 1px solid var(--border);
 }
-.refresh-btn {
-  display: flex; align-items: center; gap: 5px;
-  background: none; border: 1px solid var(--border); color: var(--muted);
-  border-radius: 5px; padding: 4px 10px; cursor: pointer; font-size: 11px; transition: all 0.15s;
-}
-.refresh-btn:hover { border-color: var(--accent); color: var(--text); }
-.refresh-btn svg { transition: transform 0.4s ease; }
-.refresh-btn.spinning svg { transform: rotate(360deg); }
 .search { margin-left: auto; position: relative; }
 .search input {
   background: var(--surface2); border: 1px solid var(--border); color: var(--text);

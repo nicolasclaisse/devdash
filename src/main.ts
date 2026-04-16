@@ -31,15 +31,6 @@ app.innerHTML = `
     <span class="badge" id="running-count">— running</span>
     <div id="starting-procs" style="display:flex;gap:4px;flex-wrap:wrap"></div>
     <span class="badge devenv-badge" id="devenv-badge">checking…</span>
-    <button class="refresh-btn" id="refresh-btn">
-      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-        <path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/>
-        <path d="M21 3v5h-5"/>
-        <path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/>
-        <path d="M8 16H3v5"/>
-      </svg>
-      Refresh
-    </button>
     <span id="btn-devenv-start"></span>
     <button class="btn btn-danger"  id="btn-devenv-stop"  style="display:none">Stop devenv</button>
     <div class="search">
@@ -748,8 +739,6 @@ btnStop.addEventListener('click', doStopDevenv)
 
 // ── Refresh ───────────────────────────────────────────────────────────────
 async function refresh() {
-  const btn = document.getElementById('refresh-btn')!
-  btn.classList.add('spinning')
   try {
     processes = await getProcesses()
   } catch {
@@ -768,13 +757,7 @@ async function refresh() {
     const proc = processes.find((p) => p.name === selected)
     if (proc) logViewer.updateStatus(proc)
   }
-  setTimeout(() => btn.classList.remove('spinning'), 300)
 }
-
-document.getElementById('refresh-btn')!.addEventListener('click', () => {
-  checkDevenv()
-  refresh()
-})
 
 // ── Auto-refresh ──────────────────────────────────────────────────────────
 setInterval(checkDevenv, 5000)
