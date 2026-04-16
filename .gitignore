@@ -1,0 +1,12 @@
+node_modules/
+dist/
+.DS_Store
+*.log
+
+# Compiled macOS native wrapper (built by deploy.sh)
+DevDashNative
+DevDash.app/Contents/MacOS/
+
+# Local environment
+.env
+.env.local

@@ -1,0 +1,58 @@
+{
+  "name": "@ncl/devdash",
+  "version": "0.1.0",
+  "description": "A web dashboard to launch and monitor a process-compose/nix dev environment — start/stop/restart processes, tail logs, browse ports, S3, system usage.",
+  "type": "module",
+  "bin": {
+    "devdash": "./bin/devdash.js"
+  },
+  "main": "./dist/server.js",
+  "files": [
+    "bin",
+    "dist",
+    "DevDash.app",
+    "DevDash.swift",
+    "deploy.sh"
+  ],
+  "scripts": {
+    "dev": "concurrently --names \"backend,vite\" --prefix-colors \"cyan,magenta\" \"tsx watch server.ts\" \"VITE_PORT=3281 vite\"",
+    "dev-app": "concurrently --names \"backend,vite\" --prefix-colors \"cyan,magenta\" \"SERVER_PORT=3282 tsx watch server.ts\" \"VITE_SERVER_PORT=3282 VITE_PORT=3280 vite\"",
+    "build": "vite build && tsc -p tsconfig.server.json",
+    "start": "node dist/server.js",
+    "preview": "vite preview",
+    "deploy": "bash deploy.sh",
+    "postinstall": "chmod +x node_modules/node-pty/prebuilds/darwin-arm64/spawn-helper 2>/dev/null || true"
+  },
+  "keywords": ["dev", "dashboard", "process-compose", "nix", "devenv", "monitor"],
+  "author": "Nicolas Claisse",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/nicolasclaisse/devdash.git"
+  },
+  "homepage": "https://github.com/nicolasclaisse/devdash",
+  "bugs": {
+    "url": "https://github.com/nicolasclaisse/devdash/issues"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "@aws-sdk/client-s3": "^3.1027.0",
+    "@aws-sdk/s3-request-presigner": "^3.1027.0",
+    "@hono/node-server": "^1.12.0",
+    "@xterm/addon-fit": "^0.11.0",
+    "@xterm/xterm": "^6.0.0",
+    "hono": "^4.4.0",
+    "node-pty": "^1.1.0",
+    "ws": "^8.20.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "@types/ws": "^8.18.1",
+    "concurrently": "^9.0.0",
+    "tsx": "^4.7.0",
+    "typescript": "^5.4.0",
+    "vite": "^5.2.0"
+  }
+}

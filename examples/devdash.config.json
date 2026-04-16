@@ -1,0 +1,18 @@
+{
+  "name": "My Stack",
+  "devenv": true,
+  "groups": [
+    { "id": "api",   "label": "APIs",      "match": { "endsWith": "-api" } },
+    { "id": "front", "label": "Frontends", "match": { "endsWith": "-front" } }
+  ],
+  "ports": [
+    { "port": 4000, "label": "my-api" },
+    { "port": 3000, "label": "my-front" }
+  ],
+  "orphans": [
+    { "name": "my-api", "pattern": "node.*my-api" }
+  ],
+  "readyPatterns": [
+    "My custom server is up"
+  ]
+}
