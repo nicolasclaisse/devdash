@@ -119,7 +119,9 @@ export class ProcessManager {
     const { def } = s
 
     const workDir = def.working_dir ? join(PROJECT_DIR, def.working_dir) : PROJECT_DIR
-    const script = `export PATH="${DEVENV_BIN}:$PATH"\n${def.exec}`
+    const script = loadConfig().devenv
+      ? `export PATH="${DEVENV_BIN}:$PATH"\n${def.exec}`
+      : def.exec
 
     log(`[devdash] Starting: ${name}`)
     const child = spawn('sh', ['-c', script], {
