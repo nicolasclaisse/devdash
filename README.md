@@ -7,11 +7,14 @@ Built with Vite + Hono. Picks the first free port starting at `52800` (so multip
 ## Install
 
 ```sh
-git clone https://github.com/nicolasclaisse/devdash ~/code/devdash
-npm install -g ~/code/devdash
+brew install nicolasclaisse/tap/devdash
 ```
 
-> Note: `npm install -g github:nicolasclaisse/devdash` is unreliable — node-pty's postinstall fails inside npm's git clone tmp dir. Cloning + installing from a local path is the workaround.
+To upgrade later:
+
+```sh
+brew upgrade devdash
+```
 
 ## Quickstart
 
