@@ -34,6 +34,18 @@ export class ProcessManager {
       }
       log(`[devdash] loaded ${def.name}: ${def.exec.trim().split('\n').pop()?.trim()}`)
     }
+    this.checkBrewDeps([...cfg.infra, ...cfg.utils])
+  }
+
+  private checkBrewDeps(entries: Array<{ name: string; brew?: string }>) {
+    for (const entry of entries) {
+      if (!entry.brew) continue
+      try {
+        execSync(`brew list ${entry.brew} 2>/dev/null`, { stdio: 'pipe' })
+      } catch {
+        log(`[devdash] ⚠️  ${entry.name}: brew package "${entry.brew}" not installed — run: brew install ${entry.brew}`)
+      }
+    }
   }
 
   isAlive(pid: number): boolean {
