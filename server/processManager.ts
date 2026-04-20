@@ -7,13 +7,46 @@ import { log, broadcast } from './sse.js'
 
 export type ProcessStatus = 'stopped' | 'starting' | 'running' | 'healthy' | 'completed' | 'failed'
 
+const LOG_LIMIT = 1000
+
+class LogBuffer {
+  private buf: string[] = []
+  private head = 0
+  private count = 0
+
+  push(line: string) {
+    if (this.count < LOG_LIMIT) {
+      this.buf.push(line)
+      this.count++
+    } else {
+      this.buf[this.head] = line
+      this.head = (this.head + 1) % LOG_LIMIT
+    }
+  }
+
+  get length() { return this.count }
+
+  slice(offset: number, end: number): string[] {
+    const ordered = this.count < LOG_LIMIT
+      ? this.buf
+      : [...this.buf.slice(this.head), ...this.buf.slice(0, this.head)]
+    return ordered.slice(offset, end)
+  }
+
+  clear() {
+    this.buf = []
+    this.head = 0
+    this.count = 0
+  }
+}
+
 interface ProcessState {
   def: ProcessDef
   child?: ChildProcess
   pid?: number
   status: ProcessStatus
   exitCode?: number
-  logs: string[]
+  logs: LogBuffer
   restarts: number
   startedAt?: Date
   removeListeners?: () => void
@@ -28,7 +61,7 @@ export class ProcessManager {
     this.defs = getProcessDefs(PROJECT_DIR, [...cfg.infra, ...cfg.utils])
     for (const def of this.defs) {
       if (!this.states.has(def.name)) {
-        this.states.set(def.name, { def, status: 'stopped', logs: [], restarts: 0 })
+        this.states.set(def.name, { def, status: 'stopped', logs: new LogBuffer(), restarts: 0 })
       } else {
         this.states.get(def.name)!.def = def
       }
@@ -113,7 +146,6 @@ export class ProcessManager {
     const s = this.states.get(name)
     if (!s) return
     s.logs.push(line)
-    if (s.logs.length > 2000) s.logs.shift()
     broadcast(`[${name}] ${line}`)
 
     // Auto-detect healthy from log output
@@ -344,14 +376,41 @@ export class ProcessManager {
 
   getLogs(name: string, offset: number, limit: number): { logs: string[]; offset: number } {
     const s = this.states.get(name)
-    const all = s?.logs ?? []
-    const slice = all.slice(offset, offset + limit)
+    if (!s) return { logs: [], offset }
+    const slice = s.logs.slice(offset, offset + limit)
     return { logs: slice, offset: offset + slice.length }
   }
 
   clearLogs(name: string): void {
     const s = this.states.get(name)
-    if (s) s.logs = []
+    if (s) s.logs.clear()
+  }
+
+  getProcessInfo(name: string): { pid?: number; status: ProcessStatus } | undefined {
+    const s = this.states.get(name)
+    if (!s) return undefined
+    return { pid: s.pid, status: s.status }
+  }
+
+  /** Register and start a process at runtime (for custom commands). */
+  startDynamic(name: string, exec: string, working_dir?: string): void {
+    if (this.states.has(name) && ['running', 'healthy', 'starting'].includes(this.getStatus(name))) return
+    const def: ProcessDef = { name, exec, working_dir, depends_on: {}, health_check: undefined }
+    if (!this.defs.find(d => d.name === name)) this.defs.push(def)
+    this.states.set(name, { def, status: 'stopped', logs: new LogBuffer(), restarts: 0 })
+    log(`[devdash] loaded ${name}: ${exec.trim().split('\n').pop()?.trim()}`)
+    this.doSpawn(name)
+  }
+
+  /** Remove a dynamic process from the list (after stop). */
+  removeDynamic(name: string): void {
+    this.stop(name)
+    this.defs = this.defs.filter(d => d.name !== name)
+    this.states.delete(name)
+  }
+
+  isDynamic(name: string): boolean {
+    return this.states.has(name) && !this.defs.some(d => d.name === name && d.exec !== this.states.get(name)?.def.exec)
   }
 }
 

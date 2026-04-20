@@ -7,7 +7,7 @@ import { sseClients, serverLogs, log } from './server/sse.js'
 import { ProcessManager } from './server/processManager.js'
 import { getOrphans, killOrphans } from './server/orphans.js'
 import { portsRoutes } from './server/ports.js'
-import { customRoutes } from './server/customCommands.js'
+import { createCustomRoutes } from './server/customCommands.js'
 import { handleUpgrade } from './server/terminal.js'
 import { s3Routes } from './server/s3.js'
 import { sysmonRoutes } from './server/sysmon.js'
@@ -97,7 +97,7 @@ app.get('/shell/logs/stream', (c) => {
 app.get('/api/config', (c) => c.json(publicConfig()))
 
 // Custom commands
-app.route('/custom', customRoutes)
+app.route('/custom', createCustomRoutes(pm))
 
 // S3 browser (returns 501 if not configured)
 app.route('/s3', s3Routes)

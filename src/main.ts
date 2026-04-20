@@ -8,7 +8,7 @@ declare global {
 import { TerminalPane } from './components/terminal'
 import {
   getProcesses, startGroup, stopGroup, getOrphans, killOrphans, type Orphan,
-  getCustomCommands, saveCustomCommands, startCustomCommand, stopCustomCommand, getCustomLogs,
+  getCustomCommands, saveCustomCommands, startCustomCommand, stopCustomCommand,
   restartProcess,
 } from './api'
 import { Sidebar } from './components/sidebar'
@@ -137,8 +137,8 @@ sidebar.setCustomHandlers({
       logViewer.showIframe('pgweb', 'http://localhost:8091', 'healthy')
       return
     }
-    const logs = await getCustomLogs(name)
-    logViewer.showCustomLogs(name, logs)
+    const status = cmd?.running ? 'running' : 'stopped'
+    logViewer.select(name, { name, status, is_running: !!cmd?.running } as any)
   },
   onEdit: openCustomEditor,
 })
