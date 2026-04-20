@@ -1,13 +1,13 @@
 import { serve } from '@hono/node-server';
 import { Hono } from 'hono';
-import { existsSync, readFileSync, watch as fsWatch } from 'node:fs';
+import { existsSync, readFileSync, statSync } from 'node:fs';
 import { join, extname } from 'node:path';
 import { SERVER_PORT, PROJECT_DIR } from './server/env.js';
 import { sseClients, serverLogs, log } from './server/sse.js';
 import { ProcessManager } from './server/processManager.js';
 import { getOrphans, killOrphans } from './server/orphans.js';
 import { portsRoutes } from './server/ports.js';
-import { customRoutes } from './server/customCommands.js';
+import { createCustomRoutes } from './server/customCommands.js';
 import { handleUpgrade } from './server/terminal.js';
 import { s3Routes } from './server/s3.js';
 import { sysmonRoutes } from './server/sysmon.js';
@@ -16,19 +16,31 @@ import { loadConfig, reloadConfig, publicConfig } from './server/config.js';
 loadConfig();
 const pm = new ProcessManager();
 pm.load();
-// Reload defs when processes.nix or devdash.config.json changes
-let reloadTimer = null;
-const scheduleReload = (label) => {
-    if (reloadTimer)
-        clearTimeout(reloadTimer);
-    reloadTimer = setTimeout(() => { reloadConfig(); pm.load(); log(`[devdash] Reloaded ${label}`); }, 300);
-};
-fsWatch(join(PROJECT_DIR, 'processes.nix'), () => scheduleReload('processes.nix'));
-const configPath = join(PROJECT_DIR, 'devdash.config.json');
-try {
-    fsWatch(configPath, () => scheduleReload('devdash.config.json'));
+// Reload defs when processes.nix or devdash.config.json changes (poll-based, fs.watch is unreliable on macOS)
+const watchFiles = [
+    { path: join(PROJECT_DIR, 'processes.nix'), label: 'processes.nix', mtime: 0 },
+    { path: join(PROJECT_DIR, 'devdash.config.json'), label: 'devdash.config.json', mtime: 0 },
+];
+for (const f of watchFiles) {
+    try {
+        f.mtime = statSync(f.path).mtimeMs;
+    }
+    catch { /* file may not exist yet */ }
 }
-catch { /* config is optional */ }
+setInterval(() => {
+    for (const f of watchFiles) {
+        try {
+            const mt = statSync(f.path).mtimeMs;
+            if (mt !== f.mtime) {
+                f.mtime = mt;
+                reloadConfig();
+                pm.load();
+                log(`[devdash] Reloaded ${f.label}`);
+            }
+        }
+        catch { /* file may not exist */ }
+    }
+}, 2000);
 const getCoreProcesses = () => loadConfig().infra.map(i => i.name);
 const ALL_PROCESSES = pm.defs.map(d => d.name);
 // ── Hono app ───────────────────────────────────────────────────────────────
@@ -92,7 +104,7 @@ app.get('/shell/logs/stream', (c) => {
 // Config (public view, no secrets)
 app.get('/api/config', (c) => c.json(publicConfig()));
 // Custom commands
-app.route('/custom', customRoutes);
+app.route('/custom', createCustomRoutes(pm));
 // S3 browser (returns 501 if not configured)
 app.route('/s3', s3Routes);
 // System monitor

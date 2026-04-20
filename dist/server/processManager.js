@@ -4,20 +4,61 @@ import { getProcessDefs } from '../gen.js';
 import { PROJECT_DIR, DEVENV_BIN, SPAWN_ENV } from './env.js';
 import { loadConfig } from './config.js';
 import { log, broadcast } from './sse.js';
+const LOG_LIMIT = 1000;
+class LogBuffer {
+    buf = [];
+    head = 0;
+    count = 0;
+    push(line) {
+        if (this.count < LOG_LIMIT) {
+            this.buf.push(line);
+            this.count++;
+        }
+        else {
+            this.buf[this.head] = line;
+            this.head = (this.head + 1) % LOG_LIMIT;
+        }
+    }
+    get length() { return this.count; }
+    slice(offset, end) {
+        const ordered = this.count < LOG_LIMIT
+            ? this.buf
+            : [...this.buf.slice(this.head), ...this.buf.slice(0, this.head)];
+        return ordered.slice(offset, end);
+    }
+    clear() {
+        this.buf = [];
+        this.head = 0;
+        this.count = 0;
+    }
+}
 export class ProcessManager {
     states = new Map();
     defs = [];
     load() {
         const cfg = loadConfig();
-        this.defs = getProcessDefs(PROJECT_DIR, cfg.infra);
+        this.defs = getProcessDefs(PROJECT_DIR, [...cfg.infra, ...cfg.utils]);
         for (const def of this.defs) {
             if (!this.states.has(def.name)) {
-                this.states.set(def.name, { def, status: 'stopped', logs: [], restarts: 0 });
+                this.states.set(def.name, { def, status: 'stopped', logs: new LogBuffer(), restarts: 0 });
             }
             else {
                 this.states.get(def.name).def = def;
             }
             log(`[devdash] loaded ${def.name}: ${def.exec.trim().split('\n').pop()?.trim()}`);
+        }
+        this.checkBrewDeps([...cfg.infra, ...cfg.utils]);
+    }
+    checkBrewDeps(entries) {
+        for (const entry of entries) {
+            if (!entry.brew)
+                continue;
+            try {
+                execSync(`brew list ${entry.brew} 2>/dev/null`, { stdio: 'pipe' });
+            }
+            catch {
+                log(`[devdash] ⚠️  ${entry.name}: brew package "${entry.brew}" not installed — run: brew install ${entry.brew}`);
+            }
         }
     }
     isAlive(pid) {
@@ -96,8 +137,6 @@ export class ProcessManager {
         if (!s)
             return;
         s.logs.push(line);
-        if (s.logs.length > 2000)
-            s.logs.shift();
         broadcast(`[${name}] ${line}`);
         // Auto-detect healthy from log output
         if (s.status === 'running' || s.status === 'starting') {
@@ -330,14 +369,41 @@ export class ProcessManager {
     }
     getLogs(name, offset, limit) {
         const s = this.states.get(name);
-        const all = s?.logs ?? [];
-        const slice = all.slice(offset, offset + limit);
+        if (!s)
+            return { logs: [], offset };
+        const slice = s.logs.slice(offset, offset + limit);
         return { logs: slice, offset: offset + slice.length };
     }
     clearLogs(name) {
         const s = this.states.get(name);
         if (s)
-            s.logs = [];
+            s.logs.clear();
+    }
+    getProcessInfo(name) {
+        const s = this.states.get(name);
+        if (!s)
+            return undefined;
+        return { pid: s.pid, status: s.status };
+    }
+    /** Register and start a process at runtime (for custom commands). */
+    startDynamic(name, exec, working_dir) {
+        if (this.states.has(name) && ['running', 'healthy', 'starting'].includes(this.getStatus(name)))
+            return;
+        const def = { name, exec, working_dir, depends_on: {}, health_check: undefined };
+        if (!this.defs.find(d => d.name === name))
+            this.defs.push(def);
+        this.states.set(name, { def, status: 'stopped', logs: new LogBuffer(), restarts: 0 });
+        log(`[devdash] loaded ${name}: ${exec.trim().split('\n').pop()?.trim()}`);
+        this.doSpawn(name);
+    }
+    /** Remove a dynamic process from the list (after stop). */
+    removeDynamic(name) {
+        this.stop(name);
+        this.defs = this.defs.filter(d => d.name !== name);
+        this.states.delete(name);
+    }
+    isDynamic(name) {
+        return this.states.has(name) && !this.defs.some(d => d.name === name && d.exec !== this.states.get(name)?.def.exec);
     }
 }
 function formatDuration(ms) {

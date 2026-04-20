@@ -43,8 +43,6 @@ export const SPAWN_ENV = {
         DEVENV_BIN,
         `${process.env.HOME}/.nix-profile/bin`,
         '/nix/var/nix/profiles/default/bin',
-        '/opt/homebrew/bin',
-        '/usr/local/bin',
         process.env.PATH ?? '',
     ].join(':'),
 };

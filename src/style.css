@@ -16,9 +16,9 @@
   --mono: 'JetBrains Mono', 'Fira Code', monospace;
 }
 
-html, body { height: 100%; overflow: hidden; }
+html, body { height: 100vh; overflow: hidden; margin: 0; }
 body { font-family: var(--font); background: var(--bg); color: var(--text); font-size: 13px; display: flex; flex-direction: column; }
-#app { display: flex; flex-direction: column; flex: 1; min-height: 0; }
+#app { display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
 
 /* ── Header ── */
 header {
@@ -226,9 +226,15 @@ main { flex: 1; display: flex; flex-direction: column; overflow: hidden; min-hei
 /* ── Spawn overlay (SSE logs + terminal) ── */
 .spawn-overlay {
   height: 260px; flex-shrink: 0;
-  background: var(--surface); border-top: 3px solid var(--accent);
-  display: flex; flex-direction: row;
+  background: var(--surface);
+  display: flex; flex-direction: row; position: relative;
 }
+.resize-handle {
+  position: absolute; top: -4px; left: 0; right: 0; height: 8px;
+  cursor: row-resize; z-index: 10;
+  border-top: 3px solid var(--accent); transition: border-color 0.15s;
+}
+.resize-handle:hover { border-color: var(--blue); }
 .spawn-header {
   display: flex; align-items: center; justify-content: space-between;
   padding: 7px 14px; border-bottom: 1px solid var(--border);
@@ -363,16 +369,42 @@ main { flex: 1; display: flex; flex-direction: column; overflow: hidden; min-hei
 }
 
 .terminal-header {
-  display: flex; align-items: center; gap: 10px;
-  padding: 7px 14px; border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; gap: 6px;
+  padding: 5px 10px; border-bottom: 1px solid var(--border);
   background: #12141a; flex-shrink: 0;
 }
-.terminal-title {
-  font-size: 11px; font-weight: 600; color: var(--muted);
-  text-transform: uppercase; letter-spacing: 0.5px;
+.terminal-tabs {
+  display: flex; gap: 2px; align-items: center;
+}
+.terminal-tab {
+  display: flex; align-items: center; gap: 4px;
+  font-size: 11px; padding: 3px 8px; border-radius: 4px; cursor: pointer;
+  border: 1px solid transparent; background: none; color: var(--muted);
+  transition: all 0.1s;
+}
+.terminal-tab:hover { color: var(--text); background: var(--surface2); }
+.terminal-tab.active { color: var(--text); background: var(--surface2); border-color: var(--border); }
+.tab-close {
+  font-size: 13px; line-height: 1; opacity: 0.4; cursor: pointer;
+  transition: color 0.1s, opacity 0.1s;
+}
+.tab-close:hover { opacity: 1; color: var(--red); }
+.terminal-tab-add {
+  font-size: 13px; line-height: 1; padding: 3px 8px; border-radius: 4px;
+  border: 1px dashed var(--border); background: none; color: var(--muted);
+  cursor: pointer; transition: all 0.1s;
+}
+.terminal-tab-add:hover { color: var(--text); border-color: var(--accent); }
+.tab-rename {
+  font-size: 11px; width: 60px; padding: 0 2px; border: 1px solid var(--accent);
+  border-radius: 2px; background: var(--bg); color: var(--text);
+  outline: none; font-family: inherit;
+}
+.terminal-bodies {
+  flex: 1; min-height: 0; overflow: hidden; position: relative;
 }
 .terminal-body {
-  flex: 1; min-height: 0; overflow: hidden; padding: 6px 4px;
+  position: absolute; inset: 0; overflow: hidden; padding: 6px 4px;
   background: #0a0c10;
 }
 .terminal-body .xterm { height: 100%; }

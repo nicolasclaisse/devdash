@@ -50,6 +50,7 @@ app.innerHTML = `
 
   <!-- SSE log overlay (shown while starting/stopping) -->
   <div id="spawn-overlay" class="spawn-overlay hidden">
+    <div id="resize-handle" class="resize-handle"></div>
     <div id="terminal-pane" class="spawn-terminal-pane"></div>
     <div class="spawn-logs-pane">
       <div class="spawn-header">
@@ -170,6 +171,36 @@ function updateOverlayState() {
   const btnLogs = document.getElementById('btn-show-logs')
   btnTerminal?.classList.toggle('active', terminalOpen)
   btnLogs?.classList.toggle('active', logsOpen)
+}
+
+// ── Resize handle ────────────────────────────────────────────────────────
+{
+  const handle = document.getElementById('resize-handle')!
+  let dragging = false
+  let startY = 0
+  let startH = 0
+
+  handle.addEventListener('mousedown', (e) => {
+    dragging = true
+    startY = e.clientY
+    startH = spawnOverlay.offsetHeight
+    document.body.style.cursor = 'row-resize'
+    document.body.style.userSelect = 'none'
+    e.preventDefault()
+  })
+
+  document.addEventListener('mousemove', (e) => {
+    if (!dragging) return
+    const h = Math.max(120, Math.min(window.innerHeight - 80, startH + (startY - e.clientY)))
+    spawnOverlay.style.height = `${h}px`
+  })
+
+  document.addEventListener('mouseup', () => {
+    if (!dragging) return
+    dragging = false
+    document.body.style.cursor = ''
+    document.body.style.userSelect = ''
+  })
 }
 
 // ── SSE log stream ────────────────────────────────────────────────────────

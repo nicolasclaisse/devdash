@@ -1,6 +1,6 @@
 import { serve } from '@hono/node-server'
 import { Hono } from 'hono'
-import { existsSync, readFileSync, watch as fsWatch } from 'node:fs'
+import { existsSync, readFileSync, statSync } from 'node:fs'
 import { join, extname } from 'node:path'
 import { SERVER_PORT, PROJECT_DIR } from './server/env.js'
 import { sseClients, serverLogs, log } from './server/sse.js'
@@ -18,15 +18,25 @@ loadConfig()
 const pm = new ProcessManager()
 pm.load()
 
-// Reload defs when processes.nix or devdash.config.json changes
-let reloadTimer: ReturnType<typeof setTimeout> | null = null
-const scheduleReload = (label: string) => {
-  if (reloadTimer) clearTimeout(reloadTimer)
-  reloadTimer = setTimeout(() => { reloadConfig(); pm.load(); log(`[devdash] Reloaded ${label}`) }, 300)
+// Reload defs when processes.nix or devdash.config.json changes (poll-based, fs.watch is unreliable on macOS)
+const watchFiles = [
+  { path: join(PROJECT_DIR, 'processes.nix'), label: 'processes.nix', mtime: 0 },
+  { path: join(PROJECT_DIR, 'devdash.config.json'), label: 'devdash.config.json', mtime: 0 },
+]
+for (const f of watchFiles) {
+  try { f.mtime = statSync(f.path).mtimeMs } catch { /* file may not exist yet */ }
 }
-fsWatch(join(PROJECT_DIR, 'processes.nix'), () => scheduleReload('processes.nix'))
-const configPath = join(PROJECT_DIR, 'devdash.config.json')
-try { fsWatch(configPath, () => scheduleReload('devdash.config.json')) } catch { /* config is optional */ }
+setInterval(() => {
+  for (const f of watchFiles) {
+    try {
+      const mt = statSync(f.path).mtimeMs
+      if (mt !== f.mtime) {
+        f.mtime = mt
+        reloadConfig(); pm.load(); log(`[devdash] Reloaded ${f.label}`)
+      }
+    } catch { /* file may not exist */ }
+  }
+}, 2000)
 
 const getCoreProcesses = () => loadConfig().infra.map(i => i.name)
 const ALL_PROCESSES = pm.defs.map(d => d.name)

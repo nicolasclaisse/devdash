@@ -3,6 +3,7 @@ import { join } from 'node:path';
 import { PROJECT_DIR } from './env.js';
 const BUILTIN_GROUPS = [
     { id: 'infra', label: 'Infrastructure', match: { in: ['postgres', 'redis', 'minio', 'mailpit'] } },
+    { id: 'utils', label: 'Utils', match: { in: [] } },
     { id: 'workers', label: 'Workers', match: { regex: '-workers?$' } },
     { id: 'other', label: 'Other', match: {} },
 ];
@@ -34,15 +35,17 @@ export function loadConfig() {
     const user = existsSync(path)
         ? JSON.parse(readFileSync(path, 'utf-8'))
         : {};
+    const utils = user.utils ?? [];
     cached = {
         name: user.name ?? 'DevDash',
         devenv: user.devenv ?? false,
-        groups: mergeGroups(user.groups ?? []),
+        groups: mergeGroups(user.groups ?? [], utils.map(u => u.name)),
         ports: [...BUILTIN_PORTS, ...(user.ports ?? [])],
         orphans: user.orphans ?? [],
         readyPatterns: [...BUILTIN_READY_PATTERNS, ...(user.readyPatterns ?? [])],
         s3: user.s3,
         infra: user.infra ?? [],
+        utils,
     };
     return cached;
 }
@@ -50,13 +53,14 @@ export function reloadConfig() {
     cached = null;
     return loadConfig();
 }
-/** Insert user groups between the built-in 'infra' group and the 'workers'/'other' fallback groups. */
-function mergeGroups(userGroups) {
+/** Insert user groups between the built-in 'infra'/'utils' groups and the 'workers'/'other' fallback groups. */
+function mergeGroups(userGroups, utilsNames) {
     const infra = BUILTIN_GROUPS.find(g => g.id === 'infra');
+    const utils = { ...BUILTIN_GROUPS.find(g => g.id === 'utils'), match: { in: utilsNames } };
     const workers = BUILTIN_GROUPS.find(g => g.id === 'workers');
     const other = BUILTIN_GROUPS.find(g => g.id === 'other');
-    const filtered = userGroups.filter(g => !['infra', 'workers', 'other'].includes(g.id));
-    return [infra, ...filtered, workers, other];
+    const filtered = userGroups.filter(g => !['infra', 'utils', 'workers', 'other'].includes(g.id));
+    return [infra, utils, ...filtered, workers, other];
 }
 export function matches(spec, name) {
     if (spec.in && spec.in.includes(name))
