@@ -230,6 +230,7 @@ function appendSpawnLog(line: string) {
   div.className = 'log-line'
   div.textContent = line
   spawnLog.appendChild(div)
+  while (spawnLog.children.length > 500) spawnLog.removeChild(spawnLog.firstChild!)
   spawnLog.scrollTop = spawnLog.scrollHeight
 }
 
