@@ -45,11 +45,13 @@ export interface DevDashConfig {
   s3?: S3Config
   infra: InfraDef[]
   utils: InfraDef[]
+  tests: InfraDef[]
 }
 
 const BUILTIN_GROUPS: GroupDef[] = [
   { id: 'infra',   label: 'Infrastructure', match: { in: ['postgres', 'redis', 'minio', 'mailpit'] } },
   { id: 'utils',   label: 'Utils',          match: { in: [] } },
+  { id: 'tests',   label: 'Tests',          match: { in: [] } },
   { id: 'workers', label: 'Workers',        match: { regex: '-workers?$' } },
   { id: 'other',   label: 'Other',          match: {} },
 ]
@@ -85,16 +87,18 @@ export function loadConfig(): DevDashConfig {
     ? (JSON.parse(readFileSync(path, 'utf-8')) as Partial<DevDashConfig>)
     : {}
   const utils = user.utils ?? []
+  const tests = user.tests ?? []
   cached = {
     name: user.name ?? 'DevDash',
     devenv: user.devenv ?? false,
-    groups: mergeGroups(user.groups ?? [], utils.map(u => u.name)),
+    groups: mergeGroups(user.groups ?? [], utils.map(u => u.name), tests.map(t => t.name)),
     ports: [...BUILTIN_PORTS, ...(user.ports ?? [])],
     orphans: user.orphans ?? [],
     readyPatterns: [...BUILTIN_READY_PATTERNS, ...(user.readyPatterns ?? [])],
     s3: user.s3,
     infra: user.infra ?? [],
     utils,
+    tests,
   }
   return cached
 }
@@ -104,14 +108,15 @@ export function reloadConfig(): DevDashConfig {
   return loadConfig()
 }
 
-/** Insert user groups between the built-in 'infra'/'utils' groups and the 'workers'/'other' fallback groups. */
-function mergeGroups(userGroups: GroupDef[], utilsNames: string[]): GroupDef[] {
+/** Insert user groups between the built-in 'infra'/'utils'/'tests' groups and the 'workers'/'other' fallback groups. */
+function mergeGroups(userGroups: GroupDef[], utilsNames: string[], testsNames: string[]): GroupDef[] {
   const infra = BUILTIN_GROUPS.find(g => g.id === 'infra')!
   const utils = { ...BUILTIN_GROUPS.find(g => g.id === 'utils')!, match: { in: utilsNames } }
+  const tests = { ...BUILTIN_GROUPS.find(g => g.id === 'tests')!, match: { in: testsNames } }
   const workers = BUILTIN_GROUPS.find(g => g.id === 'workers')!
   const other = BUILTIN_GROUPS.find(g => g.id === 'other')!
-  const filtered = userGroups.filter(g => !['infra', 'utils', 'workers', 'other'].includes(g.id))
-  return [infra, utils, ...filtered, workers, other]
+  const filtered = userGroups.filter(g => !['infra', 'utils', 'tests', 'workers', 'other'].includes(g.id))
+  return [infra, utils, tests, ...filtered, workers, other]
 }
 
 export function matches(spec: MatchSpec, name: string): boolean {

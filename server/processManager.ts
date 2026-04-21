@@ -58,7 +58,7 @@ export class ProcessManager {
 
   load() {
     const cfg = loadConfig()
-    this.defs = getProcessDefs(PROJECT_DIR, [...cfg.infra, ...cfg.utils])
+    this.defs = getProcessDefs(PROJECT_DIR, [...cfg.infra, ...cfg.utils, ...cfg.tests])
     for (const def of this.defs) {
       if (!this.states.has(def.name)) {
         this.states.set(def.name, { def, status: 'stopped', logs: new LogBuffer(), restarts: 0 })
