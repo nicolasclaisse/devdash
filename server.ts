@@ -38,26 +38,10 @@ setInterval(() => {
   }
 }, 2000)
 
-const getCoreProcesses = () => loadConfig().infra.map(i => i.name)
-const ALL_PROCESSES = pm.defs.map(d => d.name)
 
 // ── Hono app ───────────────────────────────────────────────────────────────
 const app = new Hono()
 
-// Status & lifecycle
-app.get('/shell/status', (c) => c.json({ running: pm.isAnyRunning() }))
-
-app.post('/shell/start', (c) => {
-  pm.load()
-  pm.startMany(ALL_PROCESSES)
-  return c.json({ ok: true })
-})
-app.post('/shell/start/core', (c) => {
-  pm.load()
-  pm.startMany(getCoreProcesses())
-  return c.json({ ok: true })
-})
-app.post('/shell/stop', (c) => { pm.stopAll(); return c.json({ ok: true }) })
 
 app.post('/shell/start/:process', (c) => { pm.startOne(c.req.param('process')); return c.json({ ok: true }) })
 app.post('/shell/stop/:process',  (c) => { pm.stop(c.req.param('process'));    return c.json({ ok: true }) })

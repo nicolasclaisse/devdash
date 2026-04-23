@@ -17,8 +17,8 @@ import { setGroups } from './groups'
 import type { Process, CustomCommands } from './types'
 
 // ── Config bootstrap ──────────────────────────────────────────────────────
-interface PublicConfig { name: string; groups: Array<{ id: string; label: string; match: Record<string, unknown> }>; hasS3: boolean; devenv: boolean }
-const config: PublicConfig = await fetch('/api/config').then(r => r.json()).catch(() => ({ name: 'DevDash', groups: [], hasS3: false, devenv: false }))
+interface PublicConfig { name: string; groups: Array<{ id: string; label: string; match: Record<string, unknown> }>; hasS3: boolean }
+const config: PublicConfig = await fetch('/api/config').then(r => r.json()).catch(() => ({ name: 'DevDash', groups: [], hasS3: false }))
 if (config.groups.length) setGroups(config.groups as Parameters<typeof setGroups>[0])
 document.title = config.name
 
@@ -27,12 +27,9 @@ const app = document.getElementById('app')!
 app.innerHTML = `
   <header>
     <h1>${config.name}</h1>
-    <span class="badge" title="PATH prepend mode (cfg.devenv)">${config.devenv ? 'devenv' : 'no-devenv'}</span>
     <span class="badge" id="running-count">— running</span>
     <div id="starting-procs" style="display:flex;gap:4px;flex-wrap:wrap"></div>
-    <span class="badge devenv-badge" id="devenv-badge">checking…</span>
-    <span id="btn-devenv-start"></span>
-    <button class="btn btn-danger"  id="btn-devenv-stop"  style="display:none">Stop devenv</button>
+    <span id="btn-anchor"></span>
     <div class="search">
       <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
         <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
@@ -54,7 +51,7 @@ app.innerHTML = `
     <div id="terminal-pane" class="spawn-terminal-pane"></div>
     <div class="spawn-logs-pane">
       <div class="spawn-header">
-        <span>devenv output</span>
+        <span>output</span>
         <button id="btn-close-overlay" class="clear-btn">Close</button>
       </div>
       <div id="spawn-log" class="spawn-log"></div>
@@ -69,8 +66,6 @@ let terminalOpen = false
 let logsOpen = false
 
 // ── DOM refs ──────────────────────────────────────────────────────────────
-const devenvBadge = document.getElementById('devenv-badge')!
-const btnStop = document.getElementById('btn-devenv-stop') as HTMLButtonElement
 const spawnOverlay = document.getElementById('spawn-overlay')!
 const spawnLog = document.getElementById('spawn-log')!
 const searchInput = document.getElementById('search') as HTMLInputElement
@@ -268,7 +263,7 @@ btnTerminal.addEventListener('click', () => {
   updateOverlayState()
   if (terminalOpen) terminalPane.focus()
 })
-document.querySelector('header')!.insertBefore(btnTerminal, document.getElementById('btn-devenv-start'))
+document.querySelector('header')!.insertBefore(btnTerminal, document.getElementById('btn-anchor'))
 
 const btnLogs = document.createElement('button')
 btnLogs.className = 'btn'
@@ -283,7 +278,7 @@ btnLogs.addEventListener('click', async () => {
     updateOverlayState()
   }
 })
-document.querySelector('header')!.insertBefore(btnLogs, document.getElementById('btn-devenv-start'))
+document.querySelector('header')!.insertBefore(btnLogs, document.getElementById('btn-anchor'))
 
 // ── S3 browser ────────────────────────────────────────────────────────────
 const btnS3 = document.createElement('button')
@@ -291,7 +286,7 @@ btnS3.className = 'btn'
 btnS3.textContent = 'S3'
 btnS3.style.fontSize = '11px'
 btnS3.addEventListener('click', openS3Browser)
-document.querySelector('header')!.insertBefore(btnS3, document.getElementById('btn-devenv-start'))
+document.querySelector('header')!.insertBefore(btnS3, document.getElementById('btn-anchor'))
 
 interface S3Object { key: string; size: number; lastModified?: string }
 
@@ -533,7 +528,7 @@ btnPorts.className = 'btn'
 btnPorts.textContent = 'Ports'
 btnPorts.style.fontSize = '11px'
 btnPorts.addEventListener('click', openPortsModal)
-document.querySelector('header')!.insertBefore(btnPorts, document.getElementById('btn-devenv-start'))
+document.querySelector('header')!.insertBefore(btnPorts, document.getElementById('btn-anchor'))
 
 interface PortInfo { port: number; pid?: number; command?: string; label: string; active: boolean; mem?: number }
 
@@ -595,7 +590,7 @@ btnOrphans.className = 'btn'
 btnOrphans.textContent = 'Orphans'
 btnOrphans.style.fontSize = '11px'
 btnOrphans.addEventListener('click', openOrphansModal)
-document.querySelector('header')!.insertBefore(btnOrphans, document.getElementById('btn-devenv-start'))
+document.querySelector('header')!.insertBefore(btnOrphans, document.getElementById('btn-anchor'))
 
 function openOrphansModal() {
   const overlay = document.createElement('div')
@@ -737,38 +732,6 @@ function openCustomEditor() {
   })
 }
 
-// ── Devenv state ──────────────────────────────────────────────────────────
-async function checkDevenv() {
-  try {
-    const res = await fetch('/shell/status')
-    const { running } = (await res.json()) as { running: boolean }
-    setDevenvState(running)
-  } catch {
-    setDevenvState(false)
-  }
-}
-
-function setDevenvState(running: boolean) {
-  devenvBadge.textContent = running ? 'running' : 'stopped'
-  devenvBadge.className = `badge devenv-badge ${running ? 'badge-running' : 'badge-stopped'}`
-
-  btnStop.style.display = running ? '' : 'none'
-
-  refreshCustom()
-}
-
-async function doStartDevenv() {
-  await showOverlay()
-  await fetch('/shell/start', { method: 'POST' })
-}
-
-async function doStopDevenv() {
-  await showOverlay()
-  await fetch('/shell/stop', { method: 'POST' })
-}
-
-btnStop.addEventListener('click', doStopDevenv)
-
 // ── Refresh ───────────────────────────────────────────────────────────────
 async function refresh() {
   try {
@@ -792,10 +755,8 @@ async function refresh() {
 }
 
 // ── Auto-refresh ──────────────────────────────────────────────────────────
-setInterval(checkDevenv, 5000)
 setInterval(refresh, 3000)
 
 // ── Init ──────────────────────────────────────────────────────────────────
 connectSse()
-checkDevenv()
 refresh()

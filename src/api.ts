@@ -36,24 +36,10 @@ export async function restartProcess(name: string): Promise<void> {
 
 // ── Shell control API ─────────────────────────────────────────────────────
 
-export async function getDevenvStatus(): Promise<boolean> {
-  const res = await fetch(`${SHELL_API}/status`)
-  const json = (await res.json()) as { running: boolean }
-  return json.running
-}
-
-export async function startDevenv(): Promise<void> {
-  await fetch(`${SHELL_API}/start`, { method: 'POST' })
-}
-
-export async function stopDevenv(): Promise<void> {
-  await fetch(`${SHELL_API}/stop`, { method: 'POST' })
-}
 
 export async function startGroup(processNames: string[]): Promise<void> {
-  await Promise.all(
-    processNames.map((name) => fetch(`${SHELL_API}/start/${name}`, { method: 'POST' }))
-  )
+  await Promise.all(processNames.map((name) => clearLogs(name)))
+  await Promise.all(processNames.map((name) => fetch(`${SHELL_API}/start/${name}`, { method: 'POST' })))
 }
 
 export async function stopGroup(processNames: string[]): Promise<void> {
