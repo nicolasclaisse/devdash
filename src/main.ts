@@ -420,10 +420,11 @@ async function openS3Browser() {
         for (const o of objects ?? []) {
           const name = o.key.slice(prefix.length)
           const size = formatSize(o.size)
-          html += `<div class="s3-row s3-object" data-key="${o.key}">
+          html += `<div class="s3-row s3-object" data-key="${o.key}" data-name="${escAttr(name)}">
             <span class="s3-icon">📄</span>
             <span class="s3-name s3-object-name" style="cursor:pointer">${name}</span>
             <span class="s3-meta">${size}</span>
+            <button class="btn-s3-delete clear-btn" title="Delete">🗑</button>
           </div>`
         }
         if (truncated) html += `<div class="s3-truncated">Results truncated at 500 items</div>`
@@ -434,17 +435,33 @@ async function openS3Browser() {
         el.addEventListener('click', () => browseFolder(el.dataset.prefix!))
       })
       body.querySelectorAll<HTMLElement>('.s3-object').forEach(el => {
-        el.addEventListener('click', async () => {
-          const key = el.dataset.key!
-          const name = el.querySelector('.s3-object-name')!
-          name.textContent = '…'
+        const key = el.dataset.key!
+        const originalName = el.dataset.name!
+        const nameEl = el.querySelector<HTMLElement>('.s3-object-name')!
+
+        nameEl.addEventListener('click', async () => {
+          nameEl.textContent = '…'
           const res = await fetch(`/s3/presign/${encodeURIComponent(currentBucket!)}?key=${encodeURIComponent(key)}`)
           const { url, error } = await res.json() as { url?: string; error?: string }
+          nameEl.textContent = originalName
           if (url) {
             showPreview(url, key.split('/').pop() ?? key)
           } else {
-            name.textContent = error ?? 'Error'
-            setTimeout(() => { name.textContent = key.split('/').pop() ?? key }, 2000)
+            nameEl.textContent = error ?? 'Error'
+            setTimeout(() => { nameEl.textContent = originalName }, 2000)
+          }
+        })
+
+        el.querySelector('.btn-s3-delete')!.addEventListener('click', async (e) => {
+          e.stopPropagation()
+          if (!confirm(`Delete ${originalName} ?`)) return
+          const res = await fetch(`/s3/object/${encodeURIComponent(currentBucket!)}?key=${encodeURIComponent(key)}`, { method: 'DELETE' })
+          const { ok, error } = await res.json() as { ok?: boolean; error?: string }
+          if (ok) {
+            el.remove()
+          } else {
+            nameEl.textContent = error ?? 'Delete failed'
+            setTimeout(() => { nameEl.textContent = originalName }, 2000)
           }
         })
       })
@@ -454,6 +471,10 @@ async function openS3Browser() {
   }
 
   loadBuckets()
+}
+
+function escAttr(s: string) {
+  return s.replace(/&/g, '&amp;').replace(/"/g, '&quot;')
 }
 
 function formatSize(bytes: number): string {

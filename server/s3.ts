@@ -1,5 +1,5 @@
 import { Hono } from 'hono'
-import { S3Client, ListBucketsCommand, ListObjectsV2Command, GetObjectCommand } from '@aws-sdk/client-s3'
+import { S3Client, ListBucketsCommand, ListObjectsV2Command, GetObjectCommand, DeleteObjectCommand } from '@aws-sdk/client-s3'
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner'
 import { log } from './sse.js'
 import { loadConfig } from './config.js'
@@ -53,6 +53,20 @@ s3Routes.get('/browse/:bucket', async (c) => {
     })
   } catch (e) {
     log(`[s3] browse error: ${e instanceof Error ? e.message : e}`)
+    return c.json({ error: e instanceof Error ? e.message : 'Unknown error' }, 500)
+  }
+})
+
+s3Routes.delete('/object/:bucket', async (c) => {
+  const s3 = getClient()
+  if (!s3) return c.json({ error: 's3 not configured' }, 501)
+  const bucket = c.req.param('bucket')
+  const key = c.req.query('key')
+  if (!key) return c.json({ error: 'key required' }, 400)
+  try {
+    await s3.send(new DeleteObjectCommand({ Bucket: bucket, Key: key }))
+    return c.json({ ok: true })
+  } catch (e) {
     return c.json({ error: e instanceof Error ? e.message : 'Unknown error' }, 500)
   }
 })
