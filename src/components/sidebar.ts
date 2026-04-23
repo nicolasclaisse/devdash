@@ -11,6 +11,8 @@ export class Sidebar {
   private onAction: (() => void) | null = null
   private selected: string | null = null
   private customCommands: CustomCommand[] = []
+  private pending = new Set<string>()
+  private pendingGroups = new Map<string, 'starting' | 'stopping'>()
   private onCustomStart: ((name: string) => void) | null = null
   private onCustomStop: ((name: string) => void) | null = null
   private onCustomLogs: ((name: string) => void) | null = null
@@ -86,6 +88,10 @@ export class Sidebar {
       const running = members.filter((p) => p.is_running).length + runningCustom
       const total = members.length + customMembers.length
       const allRunning = running === total
+      const pendingAction = this.pendingGroups.get(group.id)
+      if (allRunning || running === 0) this.pendingGroups.delete(group.id)
+      const pendingStart = pendingAction === 'starting'
+      const pendingStop = pendingAction === 'stopping'
 
       const groupEl = document.createElement('div')
       groupEl.className = 'group'
@@ -96,15 +102,14 @@ export class Sidebar {
           </svg>
           ${group.label}
           <span class="group-count">${running}/${total}</span>
-          ${!allRunning ? `<button class="btn-start-group" data-group="${group.id}" title="Start ${group.label}">Start</button>` : ''}
-          ${running > 0 ? `<button class="btn-stop-group" data-group="${group.id}" title="Stop ${group.label}">Stop</button>` : ''}
+          ${!allRunning && !pendingStop ? `<button class="btn-start-group" data-group="${group.id}" title="Start ${group.label}" ${pendingStart ? 'disabled' : ''}>${pendingStart ? 'Starting…' : 'Start'}</button>` : ''}
+          ${running > 0 && !pendingStart ? `<button class="btn-stop-group" data-group="${group.id}" title="Stop ${group.label}" ${pendingStop ? 'disabled' : ''}>${pendingStop ? 'Stopping…' : 'Stop'}</button>` : ''}
         </div>
         <div class="group-body" style="${collapsed ? 'display:none' : ''}"></div>
       `
 
       const header = groupEl.querySelector('.group-header')!
       header.addEventListener('click', (e) => {
-        // Don't toggle collapse when clicking the start button
         if ((e.target as HTMLElement).classList.contains('btn-start-group')) return
         this.collapsed.has(group.id) ? this.collapsed.delete(group.id) : this.collapsed.add(group.id)
         this.render(processes, search)
@@ -113,6 +118,9 @@ export class Sidebar {
       const startBtn = groupEl.querySelector<HTMLButtonElement>('.btn-start-group')
       startBtn?.addEventListener('click', (e) => {
         e.stopPropagation()
+        this.pendingGroups.set(group.id, 'starting')
+        startBtn.disabled = true
+        startBtn.textContent = 'Starting…'
         if (this.onStartGroup) {
           this.onStartGroup(group.id, members.map((p) => p.name))
         }
@@ -121,6 +129,9 @@ export class Sidebar {
       const stopBtn = groupEl.querySelector<HTMLButtonElement>('.btn-stop-group')
       stopBtn?.addEventListener('click', (e) => {
         e.stopPropagation()
+        this.pendingGroups.set(group.id, 'stopping')
+        stopBtn.disabled = true
+        stopBtn.textContent = 'Stopping…'
         if (this.onStopGroup) {
           this.onStopGroup(group.id, members.filter((p) => p.is_running).map((p) => p.name))
         }
@@ -128,6 +139,10 @@ export class Sidebar {
 
       const body = groupEl.querySelector('.group-body')!
       members.forEach((p) => {
+        const stable = ['stopped', 'failed', 'completed', 'running', 'healthy'].includes(p.status)
+        if (stable) this.pending.delete(p.name)
+        const busy = p.status === 'starting' || this.pending.has(p.name)
+
         const item = document.createElement('div')
         item.className = `process-item${p.name === this.selected ? ' active' : ''}`
         item.dataset.name = p.name
@@ -143,8 +158,8 @@ export class Sidebar {
           </div>
           ${p.restarts > 0 ? `<span class="restarts-badge">${p.restarts}x</span>` : ''}
           <div class="process-actions">
-            ${isActive ? `<button class="btn-process-action btn-process-restart" title="Restart ${p.name}">↺</button>` : ''}
-            <button class="btn-process-action ${isActive ? 'btn-process-stop' : 'btn-process-start'}" title="${isActive ? 'Stop' : 'Start'} ${p.name}">
+            ${isActive ? `<button class="btn-process-action btn-process-restart" title="Restart ${p.name}" ${busy ? 'disabled' : ''}>↺</button>` : ''}
+            <button class="btn-process-action ${isActive ? 'btn-process-stop' : 'btn-process-start'}" title="${isActive ? 'Stop' : 'Start'} ${p.name}" ${busy ? 'disabled' : ''}>
               ${isActive ? '■' : '▶'}
             </button>
           </div>
@@ -152,13 +167,19 @@ export class Sidebar {
         item.addEventListener('click', () => this.onSelect(p.name))
         item.querySelector('.btn-process-restart')?.addEventListener('click', async (e) => {
           e.stopPropagation()
+          this.pending.add(p.name)
           await restartProcess(p.name)
           setTimeout(() => this.onAction?.(), 800)
         })
         item.querySelector('.btn-process-action:last-child')!.addEventListener('click', async (e) => {
           e.stopPropagation()
-          if (isActive) await stopProcess(p.name)
-          else { await startProcess(p.name); this.onSelect(p.name) }
+          if (isActive) {
+            this.pending.add(p.name)
+            await stopProcess(p.name)
+          } else {
+            await startProcess(p.name)
+            this.onSelect(p.name)
+          }
           setTimeout(() => this.onAction?.(), 800)
         })
         body.appendChild(item)
