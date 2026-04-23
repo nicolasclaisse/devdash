@@ -84,6 +84,5 @@ export function publicConfig() {
         name: c.name,
         groups: c.groups,
         hasS3: !!c.s3,
-        devenv: c.devenv,
     };
 }
