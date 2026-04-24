@@ -54,10 +54,12 @@ interface ProcessState {
 
 export class ProcessManager {
   private states = new Map<string, ProcessState>()
+  private infraNames = new Set<string>()
   defs: ProcessDef[] = []
 
   load() {
     const cfg = loadConfig()
+    this.infraNames = new Set(cfg.infra.map(i => i.name))
     this.defs = getProcessDefs(PROJECT_DIR, [...cfg.infra, ...cfg.utils])
     for (const def of this.defs) {
       if (!this.states.has(def.name)) {
@@ -247,6 +249,16 @@ export class ProcessManager {
 
     // Mark as starting immediately to prevent concurrent startOne calls
     s.status = 'starting'
+
+    // Auto-start infra for any non-infra process
+    if (!this.infraNames.has(name)) {
+      for (const infraName of this.infraNames) {
+        const infraStatus = this.getStatus(infraName)
+        if (infraStatus === 'stopped' || infraStatus === 'failed') {
+          this.startOne(infraName).catch((e: Error) => log(`[devdash] ${infraName} error: ${e.message}`))
+        }
+      }
+    }
 
     for (const [dep, condition] of Object.entries(s.def.depends_on)) {
       const depStatus = this.getStatus(dep)
