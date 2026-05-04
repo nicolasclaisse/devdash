@@ -7,7 +7,8 @@ export class LogViewer {
   private lines: string[] = []
   private offset = 0
   private autoScroll = true
-  private interval: ReturnType<typeof setInterval> | null = null
+  private es: EventSource | null = null
+
   constructor(container: HTMLElement, _onAction: () => void) {
     this.el = container
   }
@@ -19,7 +20,7 @@ export class LogViewer {
     this.offset = 0
     this.renderShell(process)
     await this.fetchLogs()
-    this.interval = setInterval(() => this.fetchLogs(), 1500)
+    this.startSSE(name)
   }
 
   async selectAndClear(name: string, process: Process) {
@@ -28,7 +29,31 @@ export class LogViewer {
   }
 
   stop() {
-    if (this.interval) { clearInterval(this.interval); this.interval = null }
+    if (this.es) { this.es.close(); this.es = null }
+  }
+
+  private startSSE(name: string) {
+    this.es = new EventSource('/shell/logs/stream')
+    this.es.onmessage = (e) => {
+      const line = JSON.parse(e.data) as string
+      const prefix = `[${name}] `
+      if (!line.startsWith(prefix)) return
+      this.appendLine(line.slice(prefix.length))
+    }
+  }
+
+  private appendLine(line: string) {
+    this.lines = [...this.lines, line].slice(-2000)
+    const panel = this.el.querySelector<HTMLElement>('#log-panel')
+    const count = this.el.querySelector<HTMLElement>('#log-count')
+    if (!panel) return
+    if (count) count.textContent = `${this.lines.length} lines`
+    const div = document.createElement('div')
+    div.className = `log-line ${colorLine(line)}`
+    div.textContent = line
+    panel.appendChild(div)
+    if (panel.children.length > 2000) panel.firstChild?.remove()
+    if (this.autoScroll) requestAnimationFrame(() => { panel.scrollTop = panel.scrollHeight })
   }
 
   showEmpty() {
