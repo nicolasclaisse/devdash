@@ -136,6 +136,7 @@ export class LogViewer {
       <div class="log-toolbar">
         <span id="log-count">0 lines</span>
         <button class="clear-btn" id="btn-clear">Clear view</button>
+        <button class="clear-btn" id="btn-clean-file">Clean logfile</button>
         <label class="autoscroll-toggle">
           <input type="checkbox" id="autoscroll" checked> Auto-scroll
         </label>
@@ -145,7 +146,8 @@ export class LogViewer {
     this.el.querySelector('#autoscroll')!.addEventListener('change', (e) => {
       this.autoScroll = (e.target as HTMLInputElement).checked
     })
-    this.el.querySelector('#btn-clear')!.addEventListener('click', () => this.clear())
+    this.el.querySelector('#btn-clear')!.addEventListener('click', () => this.clearView())
+    this.el.querySelector('#btn-clean-file')!.addEventListener('click', () => this.cleanFile())
   }
 
   private async fetchLogs() {
@@ -168,12 +170,17 @@ export class LogViewer {
     if (this.autoScroll) requestAnimationFrame(() => { panel.scrollTop = panel.scrollHeight })
   }
 
-  private async clear() {
+  private clearView() {
+    this.lines = []
+    this.renderLines()
+  }
+
+  private async cleanFile() {
     if (!this.name) return
+    await clearLogs(this.name)
     this.lines = []
     this.offset = 0
     this.renderLines()
-    await clearLogs(this.name)
   }
 }
 

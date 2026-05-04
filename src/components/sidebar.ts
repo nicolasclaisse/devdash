@@ -68,9 +68,11 @@ export class Sidebar {
 
     // Custom commands that match a known group label get merged in
     const mergedCustom = new Set<string>()
+    const customNames = new Set(this.customCommands.map(c => c.name))
+    const regularProcesses = processes.filter(p => !customNames.has(p.name))
 
     GROUPS.forEach((group) => {
-      const members = processes.filter((p) => {
+      const members = regularProcesses.filter((p) => {
         const inGroup = groupFor(p.name).id === group.id
         const visible = !search || p.name.includes(search.toLowerCase())
         return inGroup && visible

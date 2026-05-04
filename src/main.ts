@@ -781,3 +781,4 @@ setInterval(refresh, 3000)
 // ── Init ──────────────────────────────────────────────────────────────────
 connectSse()
 refresh()
+refreshCustom()

@@ -1,4 +1,4 @@
-import { appendFile, stat, readFile, writeFile } from 'node:fs/promises'
+import { appendFile, stat, readFile, writeFile, unlink } from 'node:fs/promises'
 import { mkdirSync, existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 
@@ -60,4 +60,14 @@ export function clearLog(name: string): void {
 
 export function readServerLogs(): string[] {
   return readLogs('devdash', 0, 10000).logs
+}
+
+export function writePid(name: string, pid: number): void {
+  if (!_logsDir) return
+  writeFile(`${_logsDir}/${name}.pid`, String(pid)).catch(() => {})
+}
+
+export function removePid(name: string): void {
+  if (!_logsDir) return
+  unlink(`${_logsDir}/${name}.pid`).catch(() => {})
 }

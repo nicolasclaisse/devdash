@@ -4,7 +4,7 @@ import { getProcessDefs, type ProcessDef } from '../gen.js'
 import { PROJECT_DIR, DEVENV_BIN, SPAWN_ENV } from './env.js'
 import { loadConfig } from './config.js'
 import { log, broadcast } from './sse.js'
-import { appendLog, readLogs, clearLog } from './logWriter.js'
+import { appendLog, readLogs, clearLog, writePid, removePid } from './logWriter.js'
 
 export type ProcessStatus = 'stopped' | 'starting' | 'running' | 'healthy' | 'completed' | 'failed'
 
@@ -152,6 +152,7 @@ export class ProcessManager {
     s.pid = child.pid
     s.status = 'starting'
     s.startedAt = new Date()
+    if (child.pid) writePid(name, child.pid)
 
     let stopped = false
 
@@ -168,6 +169,7 @@ export class ProcessManager {
       s.child = undefined
       s.exitCode = code ?? -1
       s.status = code === 0 ? 'completed' : 'failed'
+      removePid(name)
       log(`[devdash] ${name} exited with code ${code}`)
       if (code !== 0) notify('devdash — process crash', `${name} exited with code ${code}`)
       if (code !== 0 && def.brew) {
@@ -268,6 +270,7 @@ export class ProcessManager {
     s.status = 'stopped'
     s.pid = undefined
     s.child = undefined
+    removePid(name)
     log(`[devdash] Stopped: ${name}`)
   }
 
