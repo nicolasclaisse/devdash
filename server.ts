@@ -7,7 +7,7 @@ import { sseClients, log } from './server/sse.js'
 import { initLogsDir, readServerLogs } from './server/logWriter.js'
 import { ProcessManager } from './server/processManager.js'
 import { getOrphans, killOrphans } from './server/orphans.js'
-import { portsRoutes } from './server/ports.js'
+import { createPortsRoutes } from './server/ports.js'
 import { createCustomRoutes } from './server/customCommands.js'
 import { handleUpgrade } from './server/terminal.js'
 import { s3Routes } from './server/s3.js'
@@ -102,7 +102,7 @@ app.route('/s3', s3Routes)
 app.route('/sysmon', sysmonRoutes)
 
 // Ports
-app.route('/ports', portsRoutes)
+app.route('/ports', createPortsRoutes(() => pm.getManagedPids()))
 
 
 // Static frontend

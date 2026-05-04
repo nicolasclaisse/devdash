@@ -369,6 +369,10 @@ export class ProcessManager {
     clearLog(name)
   }
 
+  getManagedPids(): Set<number> {
+    return new Set([...this.states.values()].map(s => s.pid).filter(Boolean) as number[])
+  }
+
   getProcessInfo(name: string): { pid?: number; status: ProcessStatus } | undefined {
     const s = this.states.get(name)
     if (!s) return undefined
