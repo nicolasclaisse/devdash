@@ -38,6 +38,7 @@ export interface S3Config {
 export interface DevDashConfig {
   name: string
   devenv: boolean
+  logsDir: string
   groups: GroupDef[]
   ports: PortDef[]
   orphans: OrphanPattern[]
@@ -88,6 +89,7 @@ export function loadConfig(): DevDashConfig {
   cached = {
     name: user.name ?? 'DevDash',
     devenv: user.devenv ?? false,
+    logsDir: user.logsDir ?? `${PROJECT_DIR}/logs`,
     groups: mergeGroups(user.groups ?? [], utils.map(u => u.name)),
     ports: [...BUILTIN_PORTS, ...(user.ports ?? [])],
     orphans: user.orphans ?? [],

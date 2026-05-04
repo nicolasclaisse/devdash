@@ -1,5 +1,5 @@
 import type { Process } from '../types'
-import { getLogs, clearLogs, startProcess, stopProcess, restartProcess } from '../api'
+import { getLogs, clearLogs } from '../api'
 
 export class LogViewer {
   private el: HTMLElement
@@ -8,11 +8,8 @@ export class LogViewer {
   private offset = 0
   private autoScroll = true
   private interval: ReturnType<typeof setInterval> | null = null
-  private onAction: () => void
-
-  constructor(container: HTMLElement, onAction: () => void) {
+  constructor(container: HTMLElement, _onAction: () => void) {
     this.el = container
-    this.onAction = onAction
   }
 
   async select(name: string, process: Process) {
@@ -88,7 +85,6 @@ export class LogViewer {
       pill.className = `status-pill ${statusPill(process.status)}`
       pill.textContent = process.status
     }
-    // Replace waiting/stats span in place
     const header = this.el.querySelector<HTMLElement>('.log-header')
     if (!header) return
     const existing = header.querySelector<HTMLElement>('.proc-waiting, .proc-stats')
@@ -121,7 +117,6 @@ export class LogViewer {
       </div>
       <div class="log-panel" id="log-panel"></div>
     `
-
     this.el.querySelector('#autoscroll')!.addEventListener('change', (e) => {
       this.autoScroll = (e.target as HTMLInputElement).checked
     })
@@ -154,14 +149,6 @@ export class LogViewer {
     this.offset = 0
     this.renderLines()
     await clearLogs(this.name)
-  }
-
-  private async action(type: 'start' | 'stop' | 'restart') {
-    if (!this.name) return
-    if (type === 'start') await startProcess(this.name)
-    if (type === 'stop') await stopProcess(this.name)
-    if (type === 'restart') await restartProcess(this.name)
-    setTimeout(() => this.onAction(), 800)
   }
 }
 

@@ -3,7 +3,8 @@ import { Hono } from 'hono'
 import { existsSync, readFileSync, statSync } from 'node:fs'
 import { join, extname } from 'node:path'
 import { SERVER_PORT, PROJECT_DIR } from './server/env.js'
-import { sseClients, serverLogs, log } from './server/sse.js'
+import { sseClients, log } from './server/sse.js'
+import { initLogsDir, readServerLogs } from './server/logWriter.js'
 import { ProcessManager } from './server/processManager.js'
 import { getOrphans, killOrphans } from './server/orphans.js'
 import { portsRoutes } from './server/ports.js'
@@ -14,7 +15,8 @@ import { sysmonRoutes } from './server/sysmon.js'
 import { loadConfig, reloadConfig, publicConfig } from './server/config.js'
 
 // ── Process manager ────────────────────────────────────────────────────────
-loadConfig()
+const cfg = loadConfig()
+initLogsDir(cfg.logsDir)
 const pm = new ProcessManager()
 pm.load()
 
@@ -76,7 +78,7 @@ app.get('/shell/orphans',       (c) => c.json({ orphans: getOrphans() }))
 app.post('/shell/orphans/kill', (c) => c.json({ killed: killOrphans() }))
 
 // SSE
-app.get('/shell/logs/history', (c) => c.json({ logs: serverLogs }))
+app.get('/shell/logs/history', (c) => c.json({ logs: readServerLogs() }))
 app.get('/shell/logs/stream', (c) => {
   const { readable, writable } = new TransformStream()
   const writer = writable.getWriter()

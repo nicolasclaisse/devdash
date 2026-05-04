@@ -162,7 +162,6 @@ interface Tab {
 let nextId = 1
 
 export class TerminalPane {
-  private container: HTMLElement
   private tabBar: HTMLElement
   private addBtn: HTMLElement
   private body: HTMLElement
@@ -171,7 +170,6 @@ export class TerminalPane {
   private commandHandlers: CommandHandler[] = []
 
   constructor(container: HTMLElement) {
-    this.container = container
     container.innerHTML = `
       <div class="terminal-header">
         <div class="terminal-tabs" id="terminal-tab-bar">

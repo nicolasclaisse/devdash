@@ -1,43 +1,15 @@
-import { spawn, execSync, type ChildProcess } from 'node:child_process'
+import { spawn, execSync, spawnSync, type ChildProcess } from 'node:child_process'
 import { join } from 'node:path'
 import { getProcessDefs, type ProcessDef } from '../gen.js'
 import { PROJECT_DIR, DEVENV_BIN, SPAWN_ENV } from './env.js'
 import { loadConfig } from './config.js'
 import { log, broadcast } from './sse.js'
+import { appendLog, readLogs, clearLog } from './logWriter.js'
 
 export type ProcessStatus = 'stopped' | 'starting' | 'running' | 'healthy' | 'completed' | 'failed'
 
-const LOG_LIMIT = 1000
-
-class LogBuffer {
-  private buf: string[] = []
-  private head = 0
-  private count = 0
-
-  push(line: string) {
-    if (this.count < LOG_LIMIT) {
-      this.buf.push(line)
-      this.count++
-    } else {
-      this.buf[this.head] = line
-      this.head = (this.head + 1) % LOG_LIMIT
-    }
-  }
-
-  get length() { return this.count }
-
-  slice(offset: number, end: number): string[] {
-    const ordered = this.count < LOG_LIMIT
-      ? this.buf
-      : [...this.buf.slice(this.head), ...this.buf.slice(0, this.head)]
-    return ordered.slice(offset, end)
-  }
-
-  clear() {
-    this.buf = []
-    this.head = 0
-    this.count = 0
-  }
+function notify(title: string, message: string): void {
+  spawnSync('osascript', ['-e', `display notification "${message}" with title "${title}"`], { stdio: 'ignore' })
 }
 
 interface ProcessState {
@@ -46,7 +18,6 @@ interface ProcessState {
   pid?: number
   status: ProcessStatus
   exitCode?: number
-  logs: LogBuffer
   restarts: number
   startedAt?: Date
   removeListeners?: () => void
@@ -63,7 +34,7 @@ export class ProcessManager {
     this.defs = getProcessDefs(PROJECT_DIR, [...cfg.infra, ...cfg.utils])
     for (const def of this.defs) {
       if (!this.states.has(def.name)) {
-        this.states.set(def.name, { def, status: 'stopped', logs: new LogBuffer(), restarts: 0 })
+        this.states.set(def.name, { def, status: 'stopped', restarts: 0 })
       } else {
         this.states.get(def.name)!.def = def
       }
@@ -147,7 +118,7 @@ export class ProcessManager {
   private addLog(name: string, line: string) {
     const s = this.states.get(name)
     if (!s) return
-    s.logs.push(line)
+    appendLog(name, line)
     broadcast(`[${name}] ${line}`)
 
     // Auto-detect healthy from log output
@@ -198,6 +169,7 @@ export class ProcessManager {
       s.exitCode = code ?? -1
       s.status = code === 0 ? 'completed' : 'failed'
       log(`[devdash] ${name} exited with code ${code}`)
+      if (code !== 0) notify('devdash — process crash', `${name} exited with code ${code}`)
       if (code !== 0 && def.brew) {
         log(`[devdash] ${name} crashed — if the binary is missing, try: brew install ${def.brew}`)
       }
@@ -387,15 +359,11 @@ export class ProcessManager {
   }
 
   getLogs(name: string, offset: number, limit: number): { logs: string[]; offset: number } {
-    const s = this.states.get(name)
-    if (!s) return { logs: [], offset }
-    const slice = s.logs.slice(offset, offset + limit)
-    return { logs: slice, offset: offset + slice.length }
+    return readLogs(name, offset, limit)
   }
 
   clearLogs(name: string): void {
-    const s = this.states.get(name)
-    if (s) s.logs.clear()
+    clearLog(name)
   }
 
   getProcessInfo(name: string): { pid?: number; status: ProcessStatus } | undefined {
@@ -409,7 +377,7 @@ export class ProcessManager {
     if (this.states.has(name) && ['running', 'healthy', 'starting'].includes(this.getStatus(name))) return
     const def: ProcessDef = { name, exec, working_dir, depends_on: {}, health_check: undefined }
     if (!this.defs.find(d => d.name === name)) this.defs.push(def)
-    this.states.set(name, { def, status: 'stopped', logs: new LogBuffer(), restarts: 0 })
+    this.states.set(name, { def, status: 'stopped', restarts: 0 })
     log(`[devdash] loaded ${name}: ${exec.trim().split('\n').pop()?.trim()}`)
     this.doSpawn(name)
   }
