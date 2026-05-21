@@ -12,6 +12,7 @@ export class Sidebar {
   private selected: string | null = null
   private customCommands: CustomCommand[] = []
   private pending = new Set<string>()
+  private pendingTimers = new Map<string, ReturnType<typeof setTimeout>>()
   private pendingGroups = new Map<string, 'starting' | 'stopping'>()
   private onCustomStart: ((name: string) => void) | null = null
   private onCustomStop: ((name: string) => void) | null = null
@@ -142,7 +143,11 @@ export class Sidebar {
       const body = groupEl.querySelector('.group-body')!
       members.forEach((p) => {
         const stable = ['stopped', 'failed', 'completed', 'running', 'healthy'].includes(p.status)
-        if (stable) this.pending.delete(p.name)
+        if (stable) {
+          this.pending.delete(p.name)
+          clearTimeout(this.pendingTimers.get(p.name))
+          this.pendingTimers.delete(p.name)
+        }
         const busy = p.status === 'starting' || this.pending.has(p.name)
 
         const item = document.createElement('div')
@@ -170,6 +175,8 @@ export class Sidebar {
         item.querySelector('.btn-process-restart')?.addEventListener('click', async (e) => {
           e.stopPropagation()
           this.pending.add(p.name)
+          clearTimeout(this.pendingTimers.get(p.name))
+          this.pendingTimers.set(p.name, setTimeout(() => { this.pending.delete(p.name); this.pendingTimers.delete(p.name); this.onAction?.() }, 30_000))
           await restartProcess(p.name)
           setTimeout(() => this.onAction?.(), 800)
         })
@@ -177,6 +184,8 @@ export class Sidebar {
           e.stopPropagation()
           if (isActive) {
             this.pending.add(p.name)
+            clearTimeout(this.pendingTimers.get(p.name))
+            this.pendingTimers.set(p.name, setTimeout(() => { this.pending.delete(p.name); this.pendingTimers.delete(p.name); this.onAction?.() }, 30_000))
             await stopProcess(p.name)
           } else {
             await startProcess(p.name)
