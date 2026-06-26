@@ -100,17 +100,20 @@ export function getTotalMem() {
 export function getMemBreakdown() {
     try {
         const out = execSync('vm_stat', { stdio: ['ignore', 'pipe', 'pipe'], timeout: 3000 }).toString();
-        const page = 16384;
+        const pageMatch = out.match(/page size of (\d+) bytes/);
+        const page = pageMatch ? Number(pageMatch[1]) : 16384;
         const get = (key) => {
             const m = out.match(new RegExp(key + ':\\s+(\\d+)'));
             return m ? Number(m[1]) * page : 0;
         };
+        const free = get('Pages free');
+        const fileCache = get('File-backed pages');
         return {
             active: get('Pages active'),
             wired: get('Pages wired down'),
             compressed: get('Pages occupied by compressor'),
-            fileCache: get('File-backed pages'),
-            free: get('Pages free'),
+            fileCache,
+            free: free + fileCache, // free + reclaimable cache = mémoire réellement disponible
         };
     }
     catch {

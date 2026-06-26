@@ -9,3 +9,6 @@ DevDash.app/Contents/MacOS/
 # Local environment
 .env
 .env.local
+
+# TS incremental build cache
+tsconfig.tsbuildinfo

@@ -6,13 +6,12 @@ import { SERVER_PORT, PROJECT_DIR } from './server/env.js'
 import { sseClients, log } from './server/sse.js'
 import { initLogsDir, readServerLogs } from './server/logWriter.js'
 import { ProcessManager } from './server/processManager.js'
-import { getOrphans, killOrphans } from './server/orphans.js'
 import { createPortsRoutes } from './server/ports.js'
 import { createCustomRoutes } from './server/customCommands.js'
 import { handleUpgrade } from './server/terminal.js'
 import { s3Routes } from './server/s3.js'
 import { sysmonRoutes } from './server/sysmon.js'
-import { loadConfig, reloadConfig, publicConfig } from './server/config.js'
+import { loadConfig, reloadConfig, publicConfig, matches } from './server/config.js'
 
 // ── Process manager ────────────────────────────────────────────────────────
 const cfg = loadConfig()
@@ -48,6 +47,14 @@ const app = new Hono()
 app.post('/shell/start/:process', (c) => { pm.startOne(c.req.param('process')); return c.json({ ok: true }) })
 app.post('/shell/stop/:process',  (c) => { pm.stop(c.req.param('process'));    return c.json({ ok: true }) })
 app.post('/shell/restart/:process', (c) => { pm.restart(c.req.param('process')); return c.json({ ok: true }) })
+app.post('/shell/restart-running', (c) => {
+  const infra = loadConfig().groups.find(g => g.id === 'infra')!
+  const running = (pm.getAll() as { name: string; is_running: boolean }[])
+    .filter(p => p.is_running && !matches(infra.match, p.name))
+    .map(p => p.name)
+  for (const name of running) pm.restart(name)
+  return c.json({ ok: true, restarted: running })
+})
 
 // Shutdown
 function doShutdown() {
@@ -72,10 +79,6 @@ app.get('/api/process/logs/:name/:offset/:limit', (c) => {
   return c.json(pm.getLogs(name, Number(offset), Number(limit)))
 })
 app.delete('/api/process/logs/:name', (c) => { pm.clearLogs(c.req.param('name')); return c.json({ ok: true }) })
-
-// Orphans
-app.get('/shell/orphans',       (c) => c.json({ orphans: getOrphans() }))
-app.post('/shell/orphans/kill', (c) => c.json({ killed: killOrphans() }))
 
 // SSE
 app.get('/shell/logs/history', (c) => c.json({ logs: readServerLogs() }))

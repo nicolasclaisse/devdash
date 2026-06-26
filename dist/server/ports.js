@@ -36,18 +36,50 @@ function getMemForPids(pids) {
     catch { /* ignore */ }
     return map;
 }
-export function getListeningPorts() {
+function expandPidTree(rootPids) {
+    try {
+        const out = execSync('ps -A -o pid=,ppid=', { stdio: ['ignore', 'pipe', 'pipe'] }).toString();
+        const children = new Map();
+        for (const line of out.trim().split('\n')) {
+            const parts = line.trim().split(/\s+/);
+            const pid = Number(parts[0]);
+            const ppid = Number(parts[1]);
+            if (!children.has(ppid))
+                children.set(ppid, []);
+            children.get(ppid).push(pid);
+        }
+        const result = new Set(rootPids);
+        const stack = [...rootPids];
+        while (stack.length) {
+            const pid = stack.pop();
+            for (const child of children.get(pid) ?? []) {
+                if (!result.has(child)) {
+                    result.add(child);
+                    stack.push(child);
+                }
+            }
+        }
+        return result;
+    }
+    catch {
+        return rootPids;
+    }
+}
+export function getListeningPorts(managedRootPids) {
     const known = loadConfig().ports;
     const active = getActivePorts();
-    const result = known.map(({ port, label }) => {
+    const managedPids = managedRootPids ? expandPidTree(managedRootPids) : null;
+    const result = known.map(({ port, label, url }) => {
         const info = active.get(port);
-        return { port, label, active: !!info, pid: info?.pid, command: info?.command };
+        return { port, label, url, active: !!info, pid: info?.pid, command: info?.command };
     });
     const knownSet = new Set(known.map(p => p.port));
     for (const [port, info] of active) {
-        if (!knownSet.has(port)) {
-            result.push({ port, label: info.command, active: true, pid: info.pid, command: info.command });
-        }
+        if (knownSet.has(port))
+            continue;
+        if (managedPids && !managedPids.has(info.pid))
+            continue;
+        result.push({ port, label: info.command, active: true, pid: info.pid, command: info.command });
     }
     const pids = result.map(p => p.pid).filter(Boolean);
     const memMap = getMemForPids(pids);
@@ -56,6 +88,15 @@ export function getListeningPorts() {
             p.mem = memMap.get(p.pid);
     }
     return result.sort((a, b) => a.port - b.port);
+}
+export function createPortsRoutes(getManagedPids) {
+    const routes = new Hono();
+    routes.get('/', (c) => c.json({ ports: getListeningPorts(getManagedPids()) }));
+    routes.delete('/:port', (c) => {
+        const port = Number(c.req.param('port'));
+        return c.json({ ok: killPort(port) });
+    });
+    return routes;
 }
 export function killPort(port) {
     try {
@@ -74,9 +115,3 @@ export function killPort(port) {
         return false;
     }
 }
-export const portsRoutes = new Hono();
-portsRoutes.get('/', (c) => c.json({ ports: getListeningPorts() }));
-portsRoutes.delete('/:port', (c) => {
-    const port = Number(c.req.param('port'));
-    return c.json({ ok: killPort(port) });
-});

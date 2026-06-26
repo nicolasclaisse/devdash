@@ -17,7 +17,7 @@ export class Sidebar {
   private onCustomStart: ((name: string) => void) | null = null
   private onCustomStop: ((name: string) => void) | null = null
   private onCustomLogs: ((name: string) => void) | null = null
-  private onCustomEdit: (() => void) | null = null
+  private onCustomEditOne: ((name: string) => void) | null = null
 
   constructor(container: HTMLElement, onSelect: (name: string) => void) {
     this.onSelect = onSelect
@@ -56,12 +56,41 @@ export class Sidebar {
     onStart: (name: string) => void
     onStop: (name: string) => void
     onLogs: (name: string) => void
-    onEdit: () => void
+    onEditOne: (name: string) => void
   }) {
     this.onCustomStart = handlers.onStart
     this.onCustomStop = handlers.onStop
     this.onCustomLogs = handlers.onLogs
-    this.onCustomEdit = handlers.onEdit
+    this.onCustomEditOne = handlers.onEditOne
+  }
+
+  private renderCustomItem(cmd: CustomCommand): HTMLElement {
+    const item = document.createElement('div')
+    item.className = `process-item${cmd.name === this.selected ? ' active' : ''}`
+    item.innerHTML = `
+      <div class="status-dot ${cmd.running ? 'dot-healthy' : 'dot-stopped'}"></div>
+      <div class="process-info">
+        <div class="process-name">${cmd.name}</div>
+        <div class="process-meta"><span class="pid-badge">${cmd.cmd}</span></div>
+      </div>
+      <div class="process-actions">
+        <button class="btn-process-action btn-process-edit" title="Edit ${cmd.name}">✎</button>
+        <button class="btn-process-action ${cmd.running ? 'btn-process-stop' : 'btn-process-start'}" title="${cmd.running ? 'Stop' : 'Start'} ${cmd.name}">
+          ${cmd.running ? '■' : '▶'}
+        </button>
+      </div>
+    `
+    item.addEventListener('click', () => this.onCustomLogs?.(cmd.name))
+    item.querySelector('.btn-process-edit')!.addEventListener('click', (e) => {
+      e.stopPropagation()
+      this.onCustomEditOne?.(cmd.name)
+    })
+    item.querySelector('.btn-process-start, .btn-process-stop')!.addEventListener('click', (e) => {
+      e.stopPropagation()
+      if (cmd.running) this.onCustomStop?.(cmd.name)
+      else { this.onCustomStart?.(cmd.name); this.onCustomLogs?.(cmd.name) }
+    })
+    return item
   }
 
   render(processes: Process[], search: string) {
@@ -198,25 +227,7 @@ export class Sidebar {
 
       // Append merged custom commands at the end of the group body
       customMembers.forEach((cmd) => {
-        const item = document.createElement('div')
-        item.className = `process-item${cmd.name === this.selected ? ' active' : ''}`
-        item.innerHTML = `
-          <div class="status-dot ${cmd.running ? 'dot-healthy' : 'dot-stopped'}"></div>
-          <div class="process-info">
-            <div class="process-name">${cmd.name}</div>
-            <div class="process-meta"><span class="pid-badge">${cmd.cmd}</span></div>
-          </div>
-          <button class="btn-process-action ${cmd.running ? 'btn-process-stop' : 'btn-process-start'}" title="${cmd.running ? 'Stop' : 'Start'} ${cmd.name}">
-            ${cmd.running ? '■' : '▶'}
-          </button>
-        `
-        item.addEventListener('click', () => this.onCustomLogs?.(cmd.name))
-        item.querySelector('.btn-process-action')!.addEventListener('click', (e) => {
-          e.stopPropagation()
-          if (cmd.running) this.onCustomStop?.(cmd.name)
-          else { this.onCustomStart?.(cmd.name); this.onCustomLogs?.(cmd.name) }
-        })
-        body.appendChild(item)
+        body.appendChild(this.renderCustomItem(cmd))
       })
 
       this.el.appendChild(groupEl)
@@ -232,9 +243,6 @@ export class Sidebar {
       ...new Set(visibleCustom.map(c => c.group || 'Custom'))
     ]
 
-    // Show Edit button once, in the first group header (or a standalone row if no commands)
-    let editButtonRendered = false
-
     if (customGroupNames.length === 0 && !search) customGroupNames.push('Custom')
 
     for (const groupName of customGroupNames) {
@@ -242,8 +250,6 @@ export class Sidebar {
       const members = visibleCustom.filter(c => (c.group || 'Custom') === groupName)
       const collapsed = this.collapsed.has(groupKey)
       const running = members.filter(c => c.running).length
-      const showEdit = !editButtonRendered
-      editButtonRendered = true
 
       const groupEl = document.createElement('div')
       groupEl.className = 'group'
@@ -254,42 +260,18 @@ export class Sidebar {
           </svg>
           ${groupName}
           <span class="group-count">${running}/${members.length}</span>
-          ${showEdit ? `<button class="btn-start-group btn-custom-edit">Edit</button>` : ''}
         </div>
         <div class="group-body" style="${collapsed ? 'display:none' : ''}"></div>
       `
 
-      groupEl.querySelector('.group-header')!.addEventListener('click', (e) => {
-        if ((e.target as HTMLElement).classList.contains('btn-custom-edit')) return
+      groupEl.querySelector('.group-header')!.addEventListener('click', () => {
         this.collapsed.has(groupKey) ? this.collapsed.delete(groupKey) : this.collapsed.add(groupKey)
         this.render(processes, search)
-      })
-      groupEl.querySelector('.btn-custom-edit')?.addEventListener('click', (e) => {
-        e.stopPropagation()
-        this.onCustomEdit?.()
       })
 
       const body = groupEl.querySelector('.group-body')!
       members.forEach((cmd) => {
-        const item = document.createElement('div')
-        item.className = `process-item${cmd.name === this.selected ? ' active' : ''}`
-        item.innerHTML = `
-          <div class="status-dot ${cmd.running ? 'dot-healthy' : 'dot-stopped'}"></div>
-          <div class="process-info">
-            <div class="process-name">${cmd.name}</div>
-            <div class="process-meta"><span class="pid-badge">${cmd.cmd}</span></div>
-          </div>
-          <button class="btn-process-action ${cmd.running ? 'btn-process-stop' : 'btn-process-start'}" title="${cmd.running ? 'Stop' : 'Start'} ${cmd.name}">
-            ${cmd.running ? '■' : '▶'}
-          </button>
-        `
-        item.addEventListener('click', () => this.onCustomLogs?.(cmd.name))
-        item.querySelector('.btn-process-action')!.addEventListener('click', (e) => {
-          e.stopPropagation()
-          if (cmd.running) this.onCustomStop?.(cmd.name)
-          else { this.onCustomStart?.(cmd.name); this.onCustomLogs?.(cmd.name) }
-        })
-        body.appendChild(item)
+        body.appendChild(this.renderCustomItem(cmd))
       })
 
       this.el.appendChild(groupEl)

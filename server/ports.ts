@@ -9,6 +9,7 @@ export interface PortInfo {
   label: string
   active: boolean
   mem?: number  // RSS in KB
+  url?: string
 }
 
 function getActivePorts(): Map<number, { pid: number; command: string }> {
@@ -68,9 +69,9 @@ export function getListeningPorts(managedRootPids?: Set<number>): PortInfo[] {
   const active = getActivePorts()
   const managedPids = managedRootPids ? expandPidTree(managedRootPids) : null
 
-  const result: PortInfo[] = known.map(({ port, label }) => {
+  const result: PortInfo[] = known.map(({ port, label, url }) => {
     const info = active.get(port)
-    return { port, label, active: !!info, pid: info?.pid, command: info?.command }
+    return { port, label, url, active: !!info, pid: info?.pid, command: info?.command }
   })
 
   const knownSet = new Set(known.map(p => p.port))

@@ -1,46 +1,24 @@
-import { spawn, execSync } from 'node:child_process';
+import { spawn, execSync, spawnSync } from 'node:child_process';
 import { join } from 'node:path';
 import { getProcessDefs } from '../gen.js';
 import { PROJECT_DIR, DEVENV_BIN, SPAWN_ENV } from './env.js';
 import { loadConfig } from './config.js';
 import { log, broadcast } from './sse.js';
-const LOG_LIMIT = 1000;
-class LogBuffer {
-    buf = [];
-    head = 0;
-    count = 0;
-    push(line) {
-        if (this.count < LOG_LIMIT) {
-            this.buf.push(line);
-            this.count++;
-        }
-        else {
-            this.buf[this.head] = line;
-            this.head = (this.head + 1) % LOG_LIMIT;
-        }
-    }
-    get length() { return this.count; }
-    slice(offset, end) {
-        const ordered = this.count < LOG_LIMIT
-            ? this.buf
-            : [...this.buf.slice(this.head), ...this.buf.slice(0, this.head)];
-        return ordered.slice(offset, end);
-    }
-    clear() {
-        this.buf = [];
-        this.head = 0;
-        this.count = 0;
-    }
+import { appendLog, readLogs, clearLog, writePid, removePid } from './logWriter.js';
+function notify(title, message) {
+    spawnSync('osascript', ['-e', `display notification "${message}" with title "${title}"`], { stdio: 'ignore' });
 }
 export class ProcessManager {
     states = new Map();
+    infraNames = new Set();
     defs = [];
     load() {
         const cfg = loadConfig();
+        this.infraNames = new Set(cfg.infra.map(i => i.name));
         this.defs = getProcessDefs(PROJECT_DIR, [...cfg.infra, ...cfg.utils]);
         for (const def of this.defs) {
             if (!this.states.has(def.name)) {
-                this.states.set(def.name, { def, status: 'stopped', logs: new LogBuffer(), restarts: 0 });
+                this.states.set(def.name, { def, status: 'stopped', restarts: 0 });
             }
             else {
                 this.states.get(def.name).def = def;
@@ -136,7 +114,7 @@ export class ProcessManager {
         const s = this.states.get(name);
         if (!s)
             return;
-        s.logs.push(line);
+        appendLog(name, line);
         broadcast(`[${name}] ${line}`);
         // Auto-detect healthy from log output
         if (s.status === 'running' || s.status === 'starting') {
@@ -166,6 +144,8 @@ export class ProcessManager {
         s.pid = child.pid;
         s.status = 'starting';
         s.startedAt = new Date();
+        if (child.pid)
+            writePid(name, child.pid);
         let stopped = false;
         const onData = (data) => {
             if (stopped)
@@ -182,7 +162,10 @@ export class ProcessManager {
             s.child = undefined;
             s.exitCode = code ?? -1;
             s.status = code === 0 ? 'completed' : 'failed';
+            removePid(name);
             log(`[devdash] ${name} exited with code ${code}`);
+            if (code !== 0)
+                notify('devdash — process crash', `${name} exited with code ${code}`);
             if (code !== 0 && def.brew) {
                 log(`[devdash] ${name} crashed — if the binary is missing, try: brew install ${def.brew}`);
             }
@@ -234,10 +217,19 @@ export class ProcessManager {
             log(`[devdash] Unknown process: ${name}`);
             return;
         }
-        if (['running', 'healthy', 'starting', 'completed'].includes(s.status))
+        if (['running', 'healthy', 'starting'].includes(s.status))
             return;
         // Mark as starting immediately to prevent concurrent startOne calls
         s.status = 'starting';
+        // Auto-start infra for any non-infra process
+        if (!this.infraNames.has(name)) {
+            for (const infraName of this.infraNames) {
+                const infraStatus = this.getStatus(infraName);
+                if (infraStatus === 'stopped' || infraStatus === 'failed') {
+                    this.startOne(infraName).catch((e) => log(`[devdash] ${infraName} error: ${e.message}`));
+                }
+            }
+        }
         for (const [dep, condition] of Object.entries(s.def.depends_on)) {
             const depStatus = this.getStatus(dep);
             if (depStatus === 'stopped' || depStatus === 'failed') {
@@ -284,6 +276,7 @@ export class ProcessManager {
         s.status = 'stopped';
         s.pid = undefined;
         s.child = undefined;
+        removePid(name);
         log(`[devdash] Stopped: ${name}`);
     }
     stopAll() {
@@ -368,16 +361,13 @@ export class ProcessManager {
         });
     }
     getLogs(name, offset, limit) {
-        const s = this.states.get(name);
-        if (!s)
-            return { logs: [], offset };
-        const slice = s.logs.slice(offset, offset + limit);
-        return { logs: slice, offset: offset + slice.length };
+        return readLogs(name, offset, limit);
     }
     clearLogs(name) {
-        const s = this.states.get(name);
-        if (s)
-            s.logs.clear();
+        clearLog(name);
+    }
+    getManagedPids() {
+        return new Set([...this.states.values()].map(s => s.pid).filter(Boolean));
     }
     getProcessInfo(name) {
         const s = this.states.get(name);
@@ -392,7 +382,7 @@ export class ProcessManager {
         const def = { name, exec, working_dir, depends_on: {}, health_check: undefined };
         if (!this.defs.find(d => d.name === name))
             this.defs.push(def);
-        this.states.set(name, { def, status: 'stopped', logs: new LogBuffer(), restarts: 0 });
+        this.states.set(name, { def, status: 'stopped', restarts: 0 });
         log(`[devdash] loaded ${name}: ${exec.trim().split('\n').pop()?.trim()}`);
         this.doSpawn(name);
     }

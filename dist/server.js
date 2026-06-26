@@ -3,17 +3,18 @@ import { Hono } from 'hono';
 import { existsSync, readFileSync, statSync } from 'node:fs';
 import { join, extname } from 'node:path';
 import { SERVER_PORT, PROJECT_DIR } from './server/env.js';
-import { sseClients, serverLogs, log } from './server/sse.js';
+import { sseClients, log } from './server/sse.js';
+import { initLogsDir, readServerLogs } from './server/logWriter.js';
 import { ProcessManager } from './server/processManager.js';
-import { getOrphans, killOrphans } from './server/orphans.js';
-import { portsRoutes } from './server/ports.js';
+import { createPortsRoutes } from './server/ports.js';
 import { createCustomRoutes } from './server/customCommands.js';
 import { handleUpgrade } from './server/terminal.js';
 import { s3Routes } from './server/s3.js';
 import { sysmonRoutes } from './server/sysmon.js';
-import { loadConfig, reloadConfig, publicConfig } from './server/config.js';
+import { loadConfig, reloadConfig, publicConfig, matches } from './server/config.js';
 // ── Process manager ────────────────────────────────────────────────────────
-loadConfig();
+const cfg = loadConfig();
+initLogsDir(cfg.logsDir);
 const pm = new ProcessManager();
 pm.load();
 // Reload defs when processes.nix or devdash.config.json changes (poll-based, fs.watch is unreliable on macOS)
@@ -46,6 +47,15 @@ const app = new Hono();
 app.post('/shell/start/:process', (c) => { pm.startOne(c.req.param('process')); return c.json({ ok: true }); });
 app.post('/shell/stop/:process', (c) => { pm.stop(c.req.param('process')); return c.json({ ok: true }); });
 app.post('/shell/restart/:process', (c) => { pm.restart(c.req.param('process')); return c.json({ ok: true }); });
+app.post('/shell/restart-running', (c) => {
+    const infra = loadConfig().groups.find(g => g.id === 'infra');
+    const running = pm.getAll()
+        .filter(p => p.is_running && !matches(infra.match, p.name))
+        .map(p => p.name);
+    for (const name of running)
+        pm.restart(name);
+    return c.json({ ok: true, restarted: running });
+});
 // Shutdown
 function doShutdown() {
     log('[devdash] Shutting down...');
@@ -72,11 +82,8 @@ app.get('/api/process/logs/:name/:offset/:limit', (c) => {
     return c.json(pm.getLogs(name, Number(offset), Number(limit)));
 });
 app.delete('/api/process/logs/:name', (c) => { pm.clearLogs(c.req.param('name')); return c.json({ ok: true }); });
-// Orphans
-app.get('/shell/orphans', (c) => c.json({ orphans: getOrphans() }));
-app.post('/shell/orphans/kill', (c) => c.json({ killed: killOrphans() }));
 // SSE
-app.get('/shell/logs/history', (c) => c.json({ logs: serverLogs }));
+app.get('/shell/logs/history', (c) => c.json({ logs: readServerLogs() }));
 app.get('/shell/logs/stream', (c) => {
     const { readable, writable } = new TransformStream();
     const writer = writable.getWriter();
@@ -95,7 +102,7 @@ app.route('/s3', s3Routes);
 // System monitor
 app.route('/sysmon', sysmonRoutes);
 // Ports
-app.route('/ports', portsRoutes);
+app.route('/ports', createPortsRoutes(() => pm.getManagedPids()));
 // Static frontend
 const MIME = { '.html': 'text/html', '.js': 'application/javascript', '.css': 'text/css', '.png': 'image/png', '.svg': 'image/svg+xml', '.ico': 'image/x-icon', '.json': 'application/json', '.woff2': 'font/woff2' };
 const distPath = existsSync(join(import.meta.dirname, 'index.html')) ? import.meta.dirname : join(import.meta.dirname, 'dist');

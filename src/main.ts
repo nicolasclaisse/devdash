@@ -7,9 +7,9 @@ declare global {
 }
 import { TerminalPane } from './components/terminal'
 import {
-  getProcesses, startGroup, stopGroup, getOrphans, killOrphans, type Orphan,
+  getProcesses, startGroup, stopGroup,
   getCustomCommands, saveCustomCommands, startCustomCommand, stopCustomCommand,
-  restartProcess,
+  restartProcess, getPorts,
 } from './api'
 import { Sidebar } from './components/sidebar'
 import { LogViewer } from './components/logviewer'
@@ -61,6 +61,8 @@ app.innerHTML = `
 
 // ── State ─────────────────────────────────────────────────────────────────
 let processes: Process[] = []
+const urlMap = new Map<string, string>()
+const getUrlForProcess = (name: string): string | null => urlMap.get(name) ?? null
 let selected: string | null = null
 let terminalOpen = false
 let logsOpen = false
@@ -99,6 +101,7 @@ sidebar.setStopGroupHandler(async (_groupId, members) => {
 sidebar.setActionHandler(refresh)
 
 const logViewer = new LogViewer(document.getElementById('log-container')!, refresh)
+logViewer.setUrlResolver(getUrlForProcess)
 logViewer.showEmpty()
 
 
@@ -136,7 +139,7 @@ sidebar.setCustomHandlers({
     const status = cmd?.running ? 'running' : 'stopped'
     logViewer.select(name, { name, status, is_running: !!cmd?.running } as any)
   },
-  onEdit: openCustomEditor,
+  onEditOne: openSingleCustomEditor,
 })
 
 async function refreshCustom() {
@@ -551,7 +554,13 @@ btnPorts.style.fontSize = '11px'
 btnPorts.addEventListener('click', openPortsModal)
 document.querySelector('header')!.insertBefore(btnPorts, document.getElementById('btn-anchor'))
 
-interface PortInfo { port: number; pid?: number; command?: string; label: string; active: boolean; mem?: number }
+// ── Custom commands editor button ─────────────────────────────────────────
+const btnScript = document.createElement('button')
+btnScript.className = 'btn'
+btnScript.textContent = 'Script'
+btnScript.style.fontSize = '11px'
+btnScript.addEventListener('click', openCustomEditor)
+document.querySelector('header')!.insertBefore(btnScript, document.getElementById('btn-anchor'))
 
 async function openPortsModal() {
   const overlay = document.createElement('div')
@@ -574,8 +583,7 @@ async function openPortsModal() {
   const body = overlay.querySelector<HTMLElement>('#ports-body')!
 
   const load = async () => {
-    const res = await fetch('/ports')
-    const { ports } = await res.json() as { ports: PortInfo[] }
+    const ports = await getPorts()
     if (!ports.length) {
       body.innerHTML = `<span style="display:block;text-align:center;padding:24px;color:var(--muted);font-size:12px">No listening ports found</span>`
       return
@@ -603,69 +611,6 @@ async function openPortsModal() {
   }
 
   await load()
-}
-
-// ── Orphans modal ─────────────────────────────────────────────────────────
-const btnOrphans = document.createElement('button')
-btnOrphans.className = 'btn'
-btnOrphans.textContent = 'Orphans'
-btnOrphans.style.fontSize = '11px'
-btnOrphans.addEventListener('click', openOrphansModal)
-document.querySelector('header')!.insertBefore(btnOrphans, document.getElementById('btn-anchor'))
-
-function openOrphansModal() {
-  const overlay = document.createElement('div')
-  overlay.className = 'editor-overlay'
-  overlay.innerHTML = `
-    <div class="editor-modal" style="width:420px">
-      <div class="editor-header">
-        <span>Orphan processes</span>
-        <button class="clear-btn" id="btn-orphans-close">✕</button>
-      </div>
-      <div id="orphans-body" style="padding:12px 16px;min-height:80px;display:flex;align-items:center;justify-content:center">
-        <span style="color:var(--muted);font-size:12px">Scanning…</span>
-      </div>
-      <div class="editor-footer">
-        <button class="btn btn-danger" id="btn-kill-all" disabled>Kill all</button>
-      </div>
-    </div>
-  `
-  document.body.appendChild(overlay)
-
-  const body = overlay.querySelector<HTMLElement>('#orphans-body')!
-  const btnKill = overlay.querySelector<HTMLButtonElement>('#btn-kill-all')!
-
-  overlay.querySelector('#btn-orphans-close')!.addEventListener('click', () => overlay.remove())
-  overlay.addEventListener('click', (e) => { if (e.target === overlay) overlay.remove() })
-
-  let orphans: Orphan[] = []
-
-  const renderOrphans = () => {
-    if (!orphans.length) {
-      body.innerHTML = `<span style="color:var(--muted);font-size:12px">No orphan processes found ✓</span>`
-      btnKill.disabled = true
-      return
-    }
-    btnKill.disabled = false
-    body.innerHTML = orphans.map(o => `
-      <div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--border)">
-        <div class="status-dot dot-running"></div>
-        <span style="flex:1;font-size:12px">${o.name}</span>
-        <span style="font-size:10px;color:var(--muted)">PIDs: ${o.pids.join(', ')}</span>
-      </div>
-    `).join('')
-  }
-
-  getOrphans().then(result => { orphans = result; renderOrphans() })
-
-  btnKill.addEventListener('click', async () => {
-    btnKill.disabled = true
-    btnKill.textContent = 'Killing…'
-    await killOrphans()
-    orphans = await getOrphans()
-    renderOrphans()
-    btnKill.textContent = 'Kill all'
-  })
 }
 
 // ── Custom editor modal ───────────────────────────────────────────────────
@@ -753,12 +698,80 @@ function openCustomEditor() {
   })
 }
 
+// ── Single custom command editor ──────────────────────────────────────────
+function openSingleCustomEditor(name: string) {
+  getCustomCommands().then(commands => {
+    const target = commands.find(c => c.name === name)
+    if (!target) return
+    const existingGroups = [...new Set(commands.map(c => c.group).filter(Boolean))] as string[]
+
+    const overlay = document.createElement('div')
+    overlay.className = 'editor-overlay'
+    overlay.innerHTML = `
+      <div class="editor-modal" style="width:560px">
+        <div class="editor-header">
+          <span>Edit command</span>
+          <button class="clear-btn" id="btn-editor-close">✕</button>
+        </div>
+        <datalist id="groups-list-one">
+          ${existingGroups.map(g => `<option value="${g}">`).join('')}
+        </datalist>
+        <div class="editor-rows">
+          <div class="editor-row" id="single-row">
+            <input class="input-group" type="text" placeholder="group" value="${target.group ?? ''}" list="groups-list-one" spellcheck="false">
+            <input class="input-name" type="text" placeholder="name" value="${target.name}" spellcheck="false">
+            <input class="input-dir" type="text" placeholder="dir (optional)" value="${target.working_dir ?? ''}" spellcheck="false">
+            <input class="input-cmd" type="text" placeholder="command" value="${target.cmd}" spellcheck="false">
+          </div>
+        </div>
+        <div class="editor-footer">
+          <button class="btn" id="btn-editor-cancel">Cancel</button>
+          <button class="btn btn-primary" id="btn-editor-save">Save</button>
+        </div>
+      </div>
+    `
+
+    const close = () => overlay.remove()
+    overlay.querySelector('#btn-editor-close')!.addEventListener('click', close)
+    overlay.querySelector('#btn-editor-cancel')!.addEventListener('click', close)
+    overlay.querySelector('#btn-editor-save')!.addEventListener('click', async () => {
+      const row = overlay.querySelector('#single-row')!
+      const newName = row.querySelector<HTMLInputElement>('.input-name')!.value.trim()
+      const cmd = row.querySelector<HTMLInputElement>('.input-cmd')!.value.trim()
+      const group = row.querySelector<HTMLInputElement>('.input-group')!.value.trim()
+      const dir = row.querySelector<HTMLInputElement>('.input-dir')!.value.trim()
+      if (!newName || !cmd) { close(); return }
+
+      const result: CustomCommands = {}
+      commands.forEach(c => {
+        if (c.name === name) return
+        result[c.name] = { cmd: c.cmd, ...(c.group ? { group: c.group } : {}), ...(c.working_dir ? { working_dir: c.working_dir } : {}) }
+      })
+      result[newName] = { cmd, ...(group ? { group } : {}), ...(dir ? { working_dir: dir } : {}) }
+
+      await saveCustomCommands(result)
+      close()
+      await refreshCustom()
+    })
+
+    document.body.appendChild(overlay)
+    overlay.querySelector<HTMLInputElement>('.input-cmd')?.focus()
+  })
+}
+
 // ── Refresh ───────────────────────────────────────────────────────────────
 async function refresh() {
   try {
     processes = await getProcesses()
   } catch {
     processes = []
+  }
+  try {
+    const ports = await getPorts()
+    urlMap.clear()
+    ports.filter(p => p.active).forEach(p => urlMap.set(p.label, p.url ? p.url : `http://localhost:${p.port}`))
+  } catch {
+    urlMap.clear()
   }
   const running = processes.filter((p) => p.is_running).length
   document.getElementById('running-count')!.textContent = `${running} running`

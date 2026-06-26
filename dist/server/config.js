@@ -39,9 +39,9 @@ export function loadConfig() {
     cached = {
         name: user.name ?? 'DevDash',
         devenv: user.devenv ?? false,
+        logsDir: user.logsDir ?? `${PROJECT_DIR}/logs`,
         groups: mergeGroups(user.groups ?? [], utils.map(u => u.name)),
         ports: [...BUILTIN_PORTS, ...(user.ports ?? [])],
-        orphans: user.orphans ?? [],
         readyPatterns: [...BUILTIN_READY_PATTERNS, ...(user.readyPatterns ?? [])],
         s3: user.s3,
         infra: user.infra ?? [],

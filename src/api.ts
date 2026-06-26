@@ -48,6 +48,16 @@ export async function stopGroup(processNames: string[]): Promise<void> {
   )
 }
 
+// ── Ports API ─────────────────────────────────────────────────────────────
+
+export interface PortInfo { port: number; pid?: number; command?: string; label: string; active: boolean; mem?: number; url?: string }
+
+export async function getPorts(): Promise<PortInfo[]> {
+  const res = await fetch('/ports')
+  const { ports } = await res.json() as { ports: PortInfo[] }
+  return ports
+}
+
 // ── Custom commands API ───────────────────────────────────────────────────
 
 import type { CustomCommand, CustomCommands } from './types'
@@ -79,20 +89,4 @@ export async function getCustomLogs(name: string): Promise<string[]> {
   const res = await fetch(`${CUSTOM_API}/${name}/logs`)
   const json = await res.json() as { logs: string[] }
   return json.logs
-}
-
-// ── Orphans API ───────────────────────────────────────────────────────────
-
-export interface Orphan { name: string; pids: number[] }
-
-export async function getOrphans(): Promise<Orphan[]> {
-  const res = await fetch(`${SHELL_API}/orphans`)
-  const json = await res.json() as { orphans: Orphan[] }
-  return json.orphans
-}
-
-export async function killOrphans(): Promise<string[]> {
-  const res = await fetch(`${SHELL_API}/orphans/kill`, { method: 'POST' })
-  const json = await res.json() as { killed: string[] }
-  return json.killed
 }

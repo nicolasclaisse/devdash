@@ -219,7 +219,7 @@ export class ProcessManager {
   async startOne(name: string): Promise<void> {
     const s = this.states.get(name)
     if (!s) { log(`[devdash] Unknown process: ${name}`); return }
-    if (['running', 'healthy', 'starting', 'completed'].includes(s.status)) return
+    if (['running', 'healthy', 'starting'].includes(s.status)) return
 
     // Mark as starting immediately to prevent concurrent startOne calls
     s.status = 'starting'

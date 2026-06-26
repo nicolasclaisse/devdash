@@ -20,11 +20,7 @@ export interface GroupDef {
 export interface PortDef {
   port: number
   label: string
-}
-
-export interface OrphanPattern {
-  name: string
-  pattern: string
+  url?: string
 }
 
 export interface S3Config {
@@ -41,7 +37,6 @@ export interface DevDashConfig {
   logsDir: string
   groups: GroupDef[]
   ports: PortDef[]
-  orphans: OrphanPattern[]
   readyPatterns: string[]
   s3?: S3Config
   infra: InfraDef[]
@@ -92,7 +87,6 @@ export function loadConfig(): DevDashConfig {
     logsDir: user.logsDir ?? `${PROJECT_DIR}/logs`,
     groups: mergeGroups(user.groups ?? [], utils.map(u => u.name)),
     ports: [...BUILTIN_PORTS, ...(user.ports ?? [])],
-    orphans: user.orphans ?? [],
     readyPatterns: [...BUILTIN_READY_PATTERNS, ...(user.readyPatterns ?? [])],
     s3: user.s3,
     infra: user.infra ?? [],

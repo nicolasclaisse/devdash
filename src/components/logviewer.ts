@@ -8,9 +8,14 @@ export class LogViewer {
   private offset = 0
   private autoScroll = true
   private es: EventSource | null = null
+  private urlFor: (name: string) => string | null = () => null
 
   constructor(container: HTMLElement, _onAction: () => void) {
     this.el = container
+  }
+
+  setUrlResolver(resolver: (name: string) => string | null) {
+    this.urlFor = resolver
   }
 
   async select(name: string, process: Process) {
@@ -53,7 +58,10 @@ export class LogViewer {
     div.textContent = line
     panel.appendChild(div)
     if (panel.children.length > 2000) panel.firstChild?.remove()
-    if (this.autoScroll) requestAnimationFrame(() => { panel.scrollTop = panel.scrollHeight })
+    if (this.autoScroll) {
+      const atBottom = panel.scrollHeight - panel.scrollTop - panel.clientHeight < 50
+      if (atBottom) requestAnimationFrame(() => { panel.scrollTop = panel.scrollHeight })
+    }
   }
 
   showEmpty() {
@@ -126,12 +134,15 @@ export class LogViewer {
   }
 
   private renderShell(process: Process) {
+    const url = this.name ? this.urlFor(this.name) : null
     this.el.innerHTML = `
       <div class="log-header">
         <span class="proc-name">${this.name}</span>
         <span class="status-pill ${statusPill(process.status)}">${process.status}</span>
         ${process.waiting_for?.length ? `<span class="proc-waiting">waiting for ${process.waiting_for.map(d => `<span class="waiting-dep">${d}</span>`).join(', ')}</span>` : `<span class="proc-stats">${procStats(process)}</span>`}
-        <div class="actions"></div>
+        <div class="actions">
+          ${url ? `<a href="${url}" target="_blank" class="btn" style="text-decoration:none;font-size:11px">Open in browser ↗</a>` : ''}
+        </div>
       </div>
       <div class="log-toolbar">
         <span id="log-count">0 lines</span>
