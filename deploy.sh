@@ -16,7 +16,7 @@ yarn build
 mkdir -p DevDash.app/Contents/MacOS
 swiftc DevDash.swift -o DevDash.app/Contents/MacOS/DevDashNative -framework Cocoa -framework WebKit
 
-# Génère le wrapper qui lance le serveur local puis ouvre la WebView
+# Génère le wrapper qui lance le serveur (binaire brew devdash) puis ouvre la WebView
 cat > DevDash.app/Contents/MacOS/devdash << WRAPPER
 #!/bin/bash
 export PATH="/usr/local/bin:/opt/homebrew/bin:/opt/homebrew/sbin:\$HOME/.nvm/versions/node/\$(ls \$HOME/.nvm/versions/node 2>/dev/null | tail -1)/bin:\$PATH"
@@ -28,7 +28,7 @@ pgrep -fl "dist/server.js" | grep -F "${PROJECT_DIR}" | awk '{print \$1}' | xarg
 sleep 1
 : > "\$LOG"
 
-node "${REPO_DIR}/dist/server.js" "${PROJECT_DIR}" >> "\$LOG" 2>&1 &
+devdash "${PROJECT_DIR}" >> "\$LOG" 2>&1 &
 
 PORT=""
 for i in \$(seq 1 120); do
