@@ -20,13 +20,14 @@ import type { Process, CustomCommands } from './types'
 interface PublicConfig { name: string; groups: Array<{ id: string; label: string; match: Record<string, unknown> }>; hasS3: boolean }
 const config: PublicConfig = await fetch('/api/config').then(r => r.json()).catch(() => ({ name: 'DevDash', groups: [], hasS3: false }))
 if (config.groups.length) setGroups(config.groups as Parameters<typeof setGroups>[0])
-document.title = config.name
+document.title = `${config.name} · v${__APP_VERSION__}`
 
 // ── App shell ─────────────────────────────────────────────────────────────
 const app = document.getElementById('app')!
 app.innerHTML = `
   <header>
     <h1>${config.name}</h1>
+    <span class="version" title="Version devdash installée">v${__APP_VERSION__}</span>
     <span class="badge" id="running-count">— running</span>
     <div id="starting-procs" style="display:flex;gap:4px;flex-wrap:wrap"></div>
     <span id="btn-anchor"></span>

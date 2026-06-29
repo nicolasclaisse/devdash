@@ -1,7 +1,9 @@
+import { readFileSync } from 'node:fs'
 import { defineConfig } from 'vite'
 
 const serverPort = Number(process.env.VITE_SERVER_PORT ?? 52800)
 const vitePort   = Number(process.env.VITE_PORT ?? 52801)
+const version = JSON.parse(readFileSync(new URL('./package.json', import.meta.url), 'utf8')).version
 
 export default defineConfig({
   server: {
@@ -20,5 +22,8 @@ export default defineConfig({
     outDir: 'dist',
     emptyOutDir: true,
     target: 'es2022',
+  },
+  define: {
+    __APP_VERSION__: JSON.stringify(version),
   },
 })

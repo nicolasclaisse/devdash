@@ -29,6 +29,7 @@ header {
   background: var(--surface); border-bottom: 1px solid var(--border); flex-shrink: 0;
 }
 header h1 { font-size: 14px; font-weight: 600; letter-spacing: -0.3px; }
+.version { font-size: 11px; color: var(--muted); font-variant-numeric: tabular-nums; flex-shrink: 0; }
 .badge {
   font-size: 11px; background: var(--surface2); color: var(--muted);
   padding: 2px 8px; border-radius: 99px; border: 1px solid var(--border);
