@@ -736,13 +736,7 @@ function openCustomEditor() {
     commands.forEach(c => addRow(c.name, c.cmd, c.group ?? '', c.working_dir ?? ''))
 
     const close = () => overlay.remove()
-    overlay.querySelector('#btn-editor-close')!.addEventListener('click', close)
-    overlay.querySelector('#btn-editor-cancel')!.addEventListener('click', close)
-    overlay.querySelector('#btn-add-row')!.addEventListener('click', () => {
-      addRow()
-      rowsEl.lastElementChild?.querySelector<HTMLInputElement>('.input-group')?.focus()
-    })
-    overlay.querySelector('#btn-editor-save')!.addEventListener('click', async () => {
+    const saveAndClose = async () => {
       const result: CustomCommands = {}
       rowsEl.querySelectorAll<HTMLElement>('.editor-row').forEach(row => {
         const name = row.querySelector<HTMLInputElement>('.input-name')!.value.trim()
@@ -754,7 +748,15 @@ function openCustomEditor() {
       await saveCustomCommands(result)
       close()
       await refreshCustom()
+    }
+    overlay.querySelector('#btn-editor-close')!.addEventListener('click', saveAndClose)
+    overlay.querySelector('#btn-editor-cancel')!.addEventListener('click', close)
+    overlay.addEventListener('click', (e) => { if (e.target === overlay) saveAndClose() })
+    overlay.querySelector('#btn-add-row')!.addEventListener('click', () => {
+      addRow()
+      rowsEl.lastElementChild?.querySelector<HTMLInputElement>('.input-group')?.focus()
     })
+    overlay.querySelector('#btn-editor-save')!.addEventListener('click', saveAndClose)
 
     document.body.appendChild(overlay)
     if (commands.length === 0) addRow()
@@ -796,9 +798,7 @@ function openSingleCustomEditor(name: string) {
     `
 
     const close = () => overlay.remove()
-    overlay.querySelector('#btn-editor-close')!.addEventListener('click', close)
-    overlay.querySelector('#btn-editor-cancel')!.addEventListener('click', close)
-    overlay.querySelector('#btn-editor-save')!.addEventListener('click', async () => {
+    const saveAndClose = async () => {
       const row = overlay.querySelector('#single-row')!
       const newName = row.querySelector<HTMLInputElement>('.input-name')!.value.trim()
       const cmd = row.querySelector<HTMLInputElement>('.input-cmd')!.value.trim()
@@ -816,7 +816,11 @@ function openSingleCustomEditor(name: string) {
       await saveCustomCommands(result)
       close()
       await refreshCustom()
-    })
+    }
+    overlay.querySelector('#btn-editor-close')!.addEventListener('click', saveAndClose)
+    overlay.querySelector('#btn-editor-cancel')!.addEventListener('click', close)
+    overlay.addEventListener('click', (e) => { if (e.target === overlay) saveAndClose() })
+    overlay.querySelector('#btn-editor-save')!.addEventListener('click', saveAndClose)
 
     document.body.appendChild(overlay)
     overlay.querySelector<HTMLInputElement>('.input-cmd')?.focus()
