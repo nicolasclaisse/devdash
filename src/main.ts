@@ -256,6 +256,34 @@ document.getElementById('btn-close-overlay')!.addEventListener('click', () => {
   updateOverlayState()
 })
 
+// ── Header overflow dropdown ──────────────────────────────────────────────
+const actionsWrap = document.createElement('div')
+actionsWrap.className = 'actions-wrap'
+const btnMore = document.createElement('button')
+btnMore.className = 'btn btn-icon'
+btnMore.id = 'btn-more'
+btnMore.title = 'More'
+btnMore.textContent = '⋯'
+const headerActions = document.createElement('div')
+headerActions.className = 'header-actions'
+headerActions.id = 'header-actions'
+actionsWrap.appendChild(btnMore)
+actionsWrap.appendChild(headerActions)
+const headerEl = document.querySelector('header')!
+const headerSpacer = document.createElement('div')
+headerSpacer.className = 'header-spacer'
+headerEl.insertBefore(headerSpacer, document.getElementById('btn-sysmon'))
+headerEl.insertBefore(actionsWrap, document.getElementById('btn-sysmon'))
+
+btnMore.addEventListener('click', (e) => {
+  e.stopPropagation()
+  headerActions.classList.toggle('open')
+})
+document.addEventListener('click', (e) => {
+  if (!actionsWrap.contains(e.target as Node)) headerActions.classList.remove('open')
+})
+
+
 // ── Header buttons: Terminal + Logs ──────────────────────────────────────
 const btnTerminal = document.createElement('button')
 btnTerminal.className = 'btn'
@@ -267,7 +295,7 @@ btnTerminal.addEventListener('click', () => {
   updateOverlayState()
   if (terminalOpen) terminalPane.focus()
 })
-document.querySelector('header')!.insertBefore(btnTerminal, document.getElementById('btn-anchor'))
+headerActions.appendChild(btnTerminal)
 
 const btnLogs = document.createElement('button')
 btnLogs.className = 'btn'
@@ -282,7 +310,7 @@ btnLogs.addEventListener('click', async () => {
     updateOverlayState()
   }
 })
-document.querySelector('header')!.insertBefore(btnLogs, document.getElementById('btn-anchor'))
+headerActions.appendChild(btnLogs)
 
 // ── S3 browser ────────────────────────────────────────────────────────────
 const btnS3 = document.createElement('button')
@@ -290,7 +318,7 @@ btnS3.className = 'btn'
 btnS3.textContent = 'S3'
 btnS3.style.fontSize = '11px'
 btnS3.addEventListener('click', openS3Browser)
-document.querySelector('header')!.insertBefore(btnS3, document.getElementById('btn-anchor'))
+headerActions.appendChild(btnS3)
 
 interface S3Object { key: string; size: number; lastModified?: string }
 
@@ -553,7 +581,7 @@ btnPorts.className = 'btn'
 btnPorts.textContent = 'Ports'
 btnPorts.style.fontSize = '11px'
 btnPorts.addEventListener('click', openPortsModal)
-document.querySelector('header')!.insertBefore(btnPorts, document.getElementById('btn-anchor'))
+headerActions.appendChild(btnPorts)
 
 // ── Custom commands editor button ─────────────────────────────────────────
 const btnScript = document.createElement('button')
@@ -561,7 +589,7 @@ btnScript.className = 'btn'
 btnScript.textContent = 'Script'
 btnScript.style.fontSize = '11px'
 btnScript.addEventListener('click', openCustomEditor)
-document.querySelector('header')!.insertBefore(btnScript, document.getElementById('btn-anchor'))
+headerActions.appendChild(btnScript)
 
 async function openPortsModal() {
   const overlay = document.createElement('div')
