@@ -49,6 +49,10 @@ app.innerHTML = `
   <!-- SSE log overlay (shown while starting/stopping) -->
   <div id="spawn-overlay" class="spawn-overlay hidden">
     <div id="resize-handle" class="resize-handle"></div>
+    <div class="overlay-tabs" id="overlay-tabs">
+      <button class="overlay-tab" data-pane="terminal">Terminal</button>
+      <button class="overlay-tab" data-pane="logs">Logs</button>
+    </div>
     <div id="terminal-pane" class="spawn-terminal-pane"></div>
     <div class="spawn-logs-pane">
       <div class="spawn-header">
@@ -67,6 +71,8 @@ const getUrlForProcess = (name: string): string | null => urlMap.get(name) ?? nu
 let selected: string | null = null
 let terminalOpen = false
 let logsOpen = false
+let activePane: 'terminal' | 'logs' = 'terminal'
+let overlayNarrow = false
 
 // ── DOM refs ──────────────────────────────────────────────────────────────
 const spawnOverlay = document.getElementById('spawn-overlay')!
@@ -159,18 +165,47 @@ const logsPane = spawnOverlay.querySelector<HTMLElement>('.spawn-logs-pane')!
 termPane.style.display = 'none'
 logsPane.style.display = 'none'
 
+const overlayTabs = document.getElementById('overlay-tabs')!
+
 function updateOverlayState() {
   const anyOpen = terminalOpen || logsOpen
   spawnOverlay.classList.toggle('hidden', !anyOpen)
-  termPane.style.display = terminalOpen ? '' : 'none'
-  logsPane.style.display = logsOpen ? '' : 'none'
-  termPane.classList.toggle('pane-with-sibling', terminalOpen && logsOpen)
+
+  const tabbed = overlayNarrow && terminalOpen && logsOpen
+  spawnOverlay.classList.toggle('tabbed', tabbed)
+
+  if (tabbed) {
+    termPane.style.display = activePane === 'terminal' ? '' : 'none'
+    logsPane.style.display = activePane === 'logs' ? '' : 'none'
+    termPane.classList.remove('pane-with-sibling')
+    overlayTabs.querySelectorAll<HTMLElement>('.overlay-tab').forEach(t => {
+      t.classList.toggle('active', t.dataset.pane === activePane)
+    })
+  } else {
+    termPane.style.display = terminalOpen ? '' : 'none'
+    logsPane.style.display = logsOpen ? '' : 'none'
+    termPane.classList.toggle('pane-with-sibling', terminalOpen && logsOpen)
+  }
 
   const btnTerminal = document.getElementById('btn-show-terminal')
   const btnLogs = document.getElementById('btn-show-logs')
   btnTerminal?.classList.toggle('active', terminalOpen)
   btnLogs?.classList.toggle('active', logsOpen)
 }
+
+overlayTabs.querySelectorAll<HTMLElement>('.overlay-tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    activePane = tab.dataset.pane as 'terminal' | 'logs'
+    updateOverlayState()
+    if (activePane === 'terminal') terminalPane.focus()
+  })
+})
+
+const overlayObserver = new ResizeObserver(() => {
+  overlayNarrow = spawnOverlay.offsetWidth < 720
+  updateOverlayState()
+})
+overlayObserver.observe(spawnOverlay)
 
 // ── Resize handle ────────────────────────────────────────────────────────
 {
