@@ -252,6 +252,21 @@ export class ProcessManager {
             }
         }
     }
+    startAll() {
+        const started = [];
+        const alreadyRunning = [];
+        for (const def of this.defs) {
+            if (this.infraNames.has(def.name))
+                continue;
+            if (['running', 'healthy', 'starting'].includes(this.getStatus(def.name))) {
+                alreadyRunning.push(def.name);
+                continue;
+            }
+            started.push(def.name);
+            this.startOne(def.name).catch((e) => log(`[devdash] ${def.name} error: ${e.message}`));
+        }
+        return { started, alreadyRunning };
+    }
     stop(name) {
         const s = this.states.get(name);
         if (!s?.child)

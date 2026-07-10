@@ -255,6 +255,21 @@ export class ProcessManager {
     }
   }
 
+  startAll(): { started: string[]; alreadyRunning: string[] } {
+    const started: string[] = []
+    const alreadyRunning: string[] = []
+    for (const def of this.defs) {
+      if (this.infraNames.has(def.name)) continue
+      if (['running', 'healthy', 'starting'].includes(this.getStatus(def.name))) {
+        alreadyRunning.push(def.name)
+        continue
+      }
+      started.push(def.name)
+      this.startOne(def.name).catch((e: Error) => log(`[devdash] ${def.name} error: ${e.message}`))
+    }
+    return { started, alreadyRunning }
+  }
+
   stop(name: string): void {
     const s = this.states.get(name)
     if (!s?.child) return
