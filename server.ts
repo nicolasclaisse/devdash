@@ -11,7 +11,7 @@ import { createCustomRoutes } from './server/customCommands.js'
 import { handleUpgrade } from './server/terminal.js'
 import { s3Routes } from './server/s3.js'
 import { sysmonRoutes } from './server/sysmon.js'
-import { loadConfig, reloadConfig, publicConfig, matches } from './server/config.js'
+import { loadConfig, reloadConfig, publicConfig } from './server/config.js'
 
 // ── Process manager ────────────────────────────────────────────────────────
 const cfg = loadConfig()
@@ -49,9 +49,9 @@ app.post('/shell/stop/:process',  (c) => { pm.stop(c.req.param('process'));    r
 app.post('/shell/restart/:process', (c) => { pm.restart(c.req.param('process')); return c.json({ ok: true }) })
 app.post('/shell/start-all', (c) => { const { started, alreadyRunning } = pm.startAll(); return c.json({ ok: true, started, alreadyRunning }) })
 app.post('/shell/restart-running', (c) => {
-  const infra = loadConfig().groups.find(g => g.id === 'infra')!
+  const services = pm.getServiceNames()
   const running = (pm.getAll() as { name: string; is_running: boolean }[])
-    .filter(p => p.is_running && !matches(infra.match, p.name))
+    .filter(p => p.is_running && !services.has(p.name))
     .map(p => p.name)
   for (const name of running) pm.restart(name)
   return c.json({ ok: true, restarted: running })

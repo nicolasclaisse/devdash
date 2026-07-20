@@ -1,21 +1,11 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { PROJECT_DIR } from './env.js';
-const BUILTIN_GROUPS = [
-    { id: 'infra', label: 'Infrastructure', match: { in: ['postgres', 'redis', 'minio', 'mailpit'] } },
-    { id: 'utils', label: 'Utils', match: { in: [] } },
-    { id: 'workers', label: 'Workers', match: { regex: '-workers?$' } },
-    { id: 'other', label: 'Other', match: {} },
-];
+const OTHER_GROUP = { id: 'other', label: 'Other', match: {} };
 const BUILTIN_PORTS = [
     { port: 52800, label: 'devdash (vite)' },
+    { port: 52801, label: 'devdash (vite hmr)' },
     { port: 52802, label: 'devdash (server)' },
-    { port: 5432, label: 'postgres' },
-    { port: 6379, label: 'redis' },
-    { port: 1025, label: 'mailpit SMTP' },
-    { port: 8025, label: 'mailpit UI' },
-    { port: 9000, label: 'minio' },
-    { port: 9001, label: 'minio console' },
 ];
 const BUILTIN_READY_PATTERNS = [
     'VITE v[\\d.]+ {2}ready in \\d+',
@@ -35,17 +25,15 @@ export function loadConfig() {
     const user = existsSync(path)
         ? JSON.parse(readFileSync(path, 'utf-8'))
         : {};
-    const utils = user.utils ?? [];
+    const userGroups = (user.groups ?? []).filter(g => g.id !== OTHER_GROUP.id);
     cached = {
         name: user.name ?? 'DevDash',
         devenv: user.devenv ?? false,
         logsDir: user.logsDir ?? `${PROJECT_DIR}/logs`,
-        groups: mergeGroups(user.groups ?? [], utils.map(u => u.name)),
+        groups: [...userGroups, OTHER_GROUP],
         ports: [...BUILTIN_PORTS, ...(user.ports ?? [])],
         readyPatterns: [...BUILTIN_READY_PATTERNS, ...(user.readyPatterns ?? [])],
         s3: user.s3,
-        infra: user.infra ?? [],
-        utils,
     };
     return cached;
 }
@@ -53,16 +41,13 @@ export function reloadConfig() {
     cached = null;
     return loadConfig();
 }
-/** Insert user groups between the built-in 'infra'/'utils' groups and the 'workers'/'other' fallback groups. */
-function mergeGroups(userGroups, utilsNames) {
-    const infra = BUILTIN_GROUPS.find(g => g.id === 'infra');
-    const utils = { ...BUILTIN_GROUPS.find(g => g.id === 'utils'), match: { in: utilsNames } };
-    const workers = BUILTIN_GROUPS.find(g => g.id === 'workers');
-    const other = BUILTIN_GROUPS.find(g => g.id === 'other');
-    const filtered = userGroups.filter(g => !['infra', 'utils', 'workers', 'other'].includes(g.id));
-    return [infra, utils, ...filtered, workers, other];
+/** Inline services declared across all groups, each tagged with its owning group id. */
+export function inlineServices(cfg) {
+    return cfg.groups.flatMap(g => (g.services ?? []).map(s => ({ ...s, groupId: g.id })));
 }
 export function matches(spec, name) {
+    if (!spec)
+        return false;
     if (spec.in && spec.in.includes(name))
         return true;
     if (spec.startsWith && name.startsWith(spec.startsWith))
@@ -80,9 +65,13 @@ export function matches(spec, name) {
 /** Public view of the config (strips secrets) — exposed via /api/config to the frontend. */
 export function publicConfig() {
     const c = loadConfig();
+    const serviceGroups = {};
+    for (const s of inlineServices(c))
+        serviceGroups[s.name] = s.groupId;
     return {
         name: c.name,
-        groups: c.groups,
+        groups: c.groups.map(({ id, label, match }) => ({ id, label, match })),
+        serviceGroups,
         hasS3: !!c.s3,
     };
 }

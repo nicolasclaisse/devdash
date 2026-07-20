@@ -13,13 +13,14 @@ import {
 } from './api'
 import { Sidebar } from './components/sidebar'
 import { LogViewer } from './components/logviewer'
-import { setGroups } from './groups'
+import { setGroups, setInlineServices } from './groups'
 import type { Process, CustomCommands } from './types'
 
 // ── Config bootstrap ──────────────────────────────────────────────────────
-interface PublicConfig { name: string; groups: Array<{ id: string; label: string; match: Record<string, unknown> }>; hasS3: boolean }
-const config: PublicConfig = await fetch('/api/config').then(r => r.json()).catch(() => ({ name: 'DevDash', groups: [], hasS3: false }))
+interface PublicConfig { name: string; groups: Array<{ id: string; label: string; match?: Record<string, unknown> }>; serviceGroups: Record<string, string>; hasS3: boolean }
+const config: PublicConfig = await fetch('/api/config').then(r => r.json()).catch(() => ({ name: 'DevDash', groups: [], serviceGroups: {}, hasS3: false }))
 if (config.groups.length) setGroups(config.groups as Parameters<typeof setGroups>[0])
+setInlineServices(config.serviceGroups ?? {})
 document.title = `${config.name} · v${__APP_VERSION__}`
 
 // ── App shell ─────────────────────────────────────────────────────────────

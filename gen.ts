@@ -31,8 +31,8 @@ export interface ProcessDef {
   brew?: string
 }
 
-/** User-defined infra entry in devdash.config.json (postgres, redis, minio, ...). */
-export interface InfraDef {
+/** Service defined inline inside a group in devdash.config.json. */
+export interface ServiceDef {
   name: string
   exec: string
   working_dir?: string
@@ -148,18 +148,18 @@ function parseProcessesNix(content: string): ProcessDef[] {
 
 // ── Public API ─────────────────────────────────────────────────────────────
 
-export function getProcessDefs(projectDir: string, infra: InfraDef[] = []): ProcessDef[] {
+export function getProcessDefs(projectDir: string, services: ServiceDef[] = []): ProcessDef[] {
   const nixContent = readFileSync(join(projectDir, 'processes.nix'), 'utf-8')
   const fromNix = parseProcessesNix(nixContent)
-  const fromInfra: ProcessDef[] = infra.map(i => ({
-    name: i.name,
-    exec: i.exec,
-    working_dir: i.working_dir,
-    depends_on: i.depends_on ?? {},
-    health_check: i.health_check,
-    brew: i.brew,
+  const fromServices: ProcessDef[] = services.map(s => ({
+    name: s.name,
+    exec: s.exec,
+    working_dir: s.working_dir,
+    depends_on: s.depends_on ?? {},
+    health_check: s.health_check,
+    brew: s.brew,
   }))
-  return [...fromInfra, ...fromNix]
+  return [...fromServices, ...fromNix]
 }
 
 // ── Needsregen / generate yaml (kept for reference) ───────────────────────
@@ -167,7 +167,7 @@ export function getProcessDefs(projectDir: string, infra: InfraDef[] = []): Proc
 export interface GenOptions {
   projectDir: string
   outputPath: string
-  infra?: InfraDef[]
+  services?: ServiceDef[]
 }
 
 export function needsRegen(opts: GenOptions): boolean {
@@ -182,8 +182,8 @@ export function needsRegen(opts: GenOptions): boolean {
 }
 
 export function generate(opts: GenOptions): void {
-  const { projectDir, outputPath, infra } = opts
-  const defs = getProcessDefs(projectDir, infra)
+  const { projectDir, outputPath, services } = opts
+  const defs = getProcessDefs(projectDir, services)
   const lines = ['version: "0.5"', 'processes:']
   for (const def of defs) {
     lines.push(`  ${def.name}:`)

@@ -2,6 +2,18 @@
   "name": "My Stack",
   "devenv": true,
   "groups": [
+    {
+      "id": "infra",
+      "label": "Infrastructure",
+      "services": [
+        {
+          "name": "db",
+          "brew": "postgresql@16",
+          "exec": "exec postgres -D \"$PGDATA\" -p 5432",
+          "health_check": { "type": "exec", "command": "pg_isready -h localhost -p 5432", "period_seconds": 2, "failure_threshold": 15 }
+        }
+      ]
+    },
     { "id": "api",   "label": "APIs",      "match": { "endsWith": "-api" } },
     { "id": "front", "label": "Frontends", "match": { "endsWith": "-front" } }
   ],

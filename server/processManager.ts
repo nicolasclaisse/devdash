@@ -2,7 +2,7 @@ import { spawn, execSync, spawnSync, type ChildProcess } from 'node:child_proces
 import { join } from 'node:path'
 import { getProcessDefs, type ProcessDef } from '../gen.js'
 import { PROJECT_DIR, DEVENV_BIN, SPAWN_ENV } from './env.js'
-import { loadConfig } from './config.js'
+import { loadConfig, inlineServices } from './config.js'
 import { log, broadcast } from './sse.js'
 import { appendLog, readLogs, clearLog, writePid, removePid } from './logWriter.js'
 
@@ -25,13 +25,14 @@ interface ProcessState {
 
 export class ProcessManager {
   private states = new Map<string, ProcessState>()
-  private infraNames = new Set<string>()
+  private serviceNames = new Set<string>()
   defs: ProcessDef[] = []
 
   load() {
     const cfg = loadConfig()
-    this.infraNames = new Set(cfg.infra.map(i => i.name))
-    this.defs = getProcessDefs(PROJECT_DIR, [...cfg.infra, ...cfg.utils])
+    const services = inlineServices(cfg)
+    this.serviceNames = new Set(services.map(s => s.name))
+    this.defs = getProcessDefs(PROJECT_DIR, services)
     for (const def of this.defs) {
       if (!this.states.has(def.name)) {
         this.states.set(def.name, { def, status: 'stopped', restarts: 0 })
@@ -40,7 +41,11 @@ export class ProcessManager {
       }
       log(`[devdash] loaded ${def.name}: ${def.exec.trim().split('\n').pop()?.trim()}`)
     }
-    this.checkBrewDeps([...cfg.infra, ...cfg.utils])
+    this.checkBrewDeps(services)
+  }
+
+  getServiceNames(): Set<string> {
+    return this.serviceNames
   }
 
   private checkBrewDeps(entries: Array<{ name: string; brew?: string }>) {
@@ -224,12 +229,12 @@ export class ProcessManager {
     // Mark as starting immediately to prevent concurrent startOne calls
     s.status = 'starting'
 
-    // Auto-start infra for any non-infra process
-    if (!this.infraNames.has(name)) {
-      for (const infraName of this.infraNames) {
-        const infraStatus = this.getStatus(infraName)
-        if (infraStatus === 'stopped' || infraStatus === 'failed') {
-          this.startOne(infraName).catch((e: Error) => log(`[devdash] ${infraName} error: ${e.message}`))
+    // Auto-start inline services (dependency providers) for any regular process
+    if (!this.serviceNames.has(name)) {
+      for (const serviceName of this.serviceNames) {
+        const serviceStatus = this.getStatus(serviceName)
+        if (serviceStatus === 'stopped' || serviceStatus === 'failed') {
+          this.startOne(serviceName).catch((e: Error) => log(`[devdash] ${serviceName} error: ${e.message}`))
         }
       }
     }
@@ -259,7 +264,7 @@ export class ProcessManager {
     const started: string[] = []
     const alreadyRunning: string[] = []
     for (const def of this.defs) {
-      if (this.infraNames.has(def.name)) continue
+      if (this.serviceNames.has(def.name)) continue
       if (['running', 'healthy', 'starting'].includes(this.getStatus(def.name))) {
         alreadyRunning.push(def.name)
         continue

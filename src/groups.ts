@@ -11,10 +11,11 @@ export interface MatchSpec {
 export interface GroupConfig {
   id: string
   label: string
-  match: MatchSpec
+  match?: MatchSpec
 }
 
-function compile(spec: MatchSpec): (name: string) => boolean {
+function compile(spec: MatchSpec | undefined): (name: string) => boolean {
+  if (!spec) return () => false
   const re = spec.regex ? new RegExp(spec.regex) : null
   return (name: string) => {
     if (spec.in && spec.in.includes(name)) return true
@@ -28,17 +29,26 @@ function compile(spec: MatchSpec): (name: string) => boolean {
 }
 
 const DEFAULT_GROUPS: GroupConfig[] = [
-  { id: 'infra',   label: 'Infrastructure', match: { in: [] } },
-  { id: 'workers', label: 'Workers',        match: { regex: '-workers?$' } },
-  { id: 'other',   label: 'Other',          match: {} },
+  { id: 'other', label: 'Other', match: {} },
 ]
 
 export let GROUPS: Group[] = DEFAULT_GROUPS.map(g => ({ id: g.id, label: g.label, match: compile(g.match) }))
+
+let inlineServiceGroup = new Map<string, string>()
 
 export function setGroups(groups: GroupConfig[]): void {
   GROUPS = groups.map(g => ({ id: g.id, label: g.label, match: compile(g.match) }))
 }
 
+export function setInlineServices(map: Record<string, string>): void {
+  inlineServiceGroup = new Map(Object.entries(map))
+}
+
 export function groupFor(name: string): Group {
+  const inlineId = inlineServiceGroup.get(name)
+  if (inlineId) {
+    const g = GROUPS.find((g) => g.id === inlineId)
+    if (g) return g
+  }
   return GROUPS.find((g) => g.match(name)) ?? GROUPS[GROUPS.length - 1]
 }
