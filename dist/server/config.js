@@ -45,6 +45,12 @@ export function reloadConfig() {
 export function inlineServices(cfg) {
     return cfg.groups.flatMap(g => (g.services ?? []).map(s => ({ ...s, groupId: g.id })));
 }
+/** Inline services belonging to groups flagged `autostart: true`. */
+export function autostartServices(cfg) {
+    return cfg.groups
+        .filter(g => g.autostart === true)
+        .flatMap(g => (g.services ?? []).map(s => ({ ...s, groupId: g.id })));
+}
 export function matches(spec, name) {
     if (!spec)
         return false;

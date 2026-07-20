@@ -2,7 +2,7 @@ import { spawn, execSync, spawnSync } from 'node:child_process';
 import { join } from 'node:path';
 import { getProcessDefs } from '../gen.js';
 import { PROJECT_DIR, DEVENV_BIN, SPAWN_ENV } from './env.js';
-import { loadConfig, inlineServices } from './config.js';
+import { loadConfig, inlineServices, autostartServices } from './config.js';
 import { log, broadcast } from './sse.js';
 import { appendLog, readLogs, clearLog, writePid, removePid } from './logWriter.js';
 function notify(title, message) {
@@ -11,11 +11,13 @@ function notify(title, message) {
 export class ProcessManager {
     states = new Map();
     serviceNames = new Set();
+    autostartNames = new Set();
     defs = [];
     load() {
         const cfg = loadConfig();
         const services = inlineServices(cfg);
         this.serviceNames = new Set(services.map(s => s.name));
+        this.autostartNames = new Set(autostartServices(cfg).map(s => s.name));
         this.defs = getProcessDefs(PROJECT_DIR, services);
         for (const def of this.defs) {
             if (!this.states.has(def.name)) {
@@ -225,12 +227,20 @@ export class ProcessManager {
             return;
         // Mark as starting immediately to prevent concurrent startOne calls
         s.status = 'starting';
-        // Auto-start inline services (dependency providers) for any regular process
-        if (!this.serviceNames.has(name)) {
-            for (const serviceName of this.serviceNames) {
+        // Bring up autostart-group services (dependency providers) and wait until healthy
+        if (!this.autostartNames.has(name)) {
+            for (const serviceName of this.autostartNames) {
                 const serviceStatus = this.getStatus(serviceName);
                 if (serviceStatus === 'stopped' || serviceStatus === 'failed') {
                     this.startOne(serviceName).catch((e) => log(`[devdash] ${serviceName} error: ${e.message}`));
+                }
+                const condition = this.states.get(serviceName)?.def.health_check ? 'process_healthy' : 'process_started';
+                log(`[devdash] ${name} waiting for autostart ${serviceName} (${condition})`);
+                const ok = await this.waitFor(serviceName, condition);
+                if (!ok) {
+                    log(`[devdash] ${name} autostart ${serviceName} not satisfied — aborting`);
+                    s.status = 'failed';
+                    return;
                 }
             }
         }

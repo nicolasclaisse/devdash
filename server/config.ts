@@ -16,6 +16,7 @@ export interface GroupDef {
   label: string
   match?: MatchSpec
   services?: ServiceDef[]
+  autostart?: boolean
 }
 
 export interface PortDef {
@@ -90,6 +91,13 @@ export function reloadConfig(): DevDashConfig {
 /** Inline services declared across all groups, each tagged with its owning group id. */
 export function inlineServices(cfg: DevDashConfig): Array<ServiceDef & { groupId: string }> {
   return cfg.groups.flatMap(g => (g.services ?? []).map(s => ({ ...s, groupId: g.id })))
+}
+
+/** Inline services belonging to groups flagged `autostart: true`. */
+export function autostartServices(cfg: DevDashConfig): Array<ServiceDef & { groupId: string }> {
+  return cfg.groups
+    .filter(g => g.autostart === true)
+    .flatMap(g => (g.services ?? []).map(s => ({ ...s, groupId: g.id })))
 }
 
 export function matches(spec: MatchSpec | undefined, name: string): boolean {
