@@ -44,7 +44,7 @@ export interface DevDashConfig {
 }
 
 const BUILTIN_GROUPS: GroupDef[] = [
-  { id: 'infra',   label: 'Infrastructure', match: { in: ['postgres', 'redis', 'minio', 'mailpit'] } },
+  { id: 'infra',   label: 'Infrastructure', match: { in: [] } },
   { id: 'utils',   label: 'Utils',          match: { in: [] } },
   { id: 'workers', label: 'Workers',        match: { regex: '-workers?$' } },
   { id: 'other',   label: 'Other',          match: {} },
@@ -81,15 +81,16 @@ export function loadConfig(): DevDashConfig {
     ? (JSON.parse(readFileSync(path, 'utf-8')) as Partial<DevDashConfig>)
     : {}
   const utils = user.utils ?? []
+  const infra = user.infra ?? []
   cached = {
     name: user.name ?? 'DevDash',
     devenv: user.devenv ?? false,
     logsDir: user.logsDir ?? `${PROJECT_DIR}/logs`,
-    groups: mergeGroups(user.groups ?? [], utils.map(u => u.name)),
+    groups: mergeGroups(user.groups ?? [], infra.map(i => i.name), utils.map(u => u.name)),
     ports: [...BUILTIN_PORTS, ...(user.ports ?? [])],
     readyPatterns: [...BUILTIN_READY_PATTERNS, ...(user.readyPatterns ?? [])],
     s3: user.s3,
-    infra: user.infra ?? [],
+    infra,
     utils,
   }
   return cached
@@ -101,8 +102,8 @@ export function reloadConfig(): DevDashConfig {
 }
 
 /** Insert user groups between the built-in 'infra'/'utils' groups and the 'workers'/'other' fallback groups. */
-function mergeGroups(userGroups: GroupDef[], utilsNames: string[]): GroupDef[] {
-  const infra = BUILTIN_GROUPS.find(g => g.id === 'infra')!
+function mergeGroups(userGroups: GroupDef[], infraNames: string[], utilsNames: string[]): GroupDef[] {
+  const infra = { ...BUILTIN_GROUPS.find(g => g.id === 'infra')!, match: { in: infraNames } }
   const utils = { ...BUILTIN_GROUPS.find(g => g.id === 'utils')!, match: { in: utilsNames } }
   const workers = BUILTIN_GROUPS.find(g => g.id === 'workers')!
   const other = BUILTIN_GROUPS.find(g => g.id === 'other')!

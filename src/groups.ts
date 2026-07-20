@@ -28,7 +28,7 @@ function compile(spec: MatchSpec): (name: string) => boolean {
 }
 
 const DEFAULT_GROUPS: GroupConfig[] = [
-  { id: 'infra',   label: 'Infrastructure', match: { in: ['postgres', 'redis', 'minio', 'mailpit'] } },
+  { id: 'infra',   label: 'Infrastructure', match: { in: [] } },
   { id: 'workers', label: 'Workers',        match: { regex: '-workers?$' } },
   { id: 'other',   label: 'Other',          match: {} },
 ]
