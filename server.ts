@@ -21,6 +21,7 @@ pm.load()
 
 // Reload defs when processes.nix or devdash.config.json changes (poll-based, fs.watch is unreliable on macOS)
 const watchFiles = [
+  { path: join(PROJECT_DIR, 'processes.json'), label: 'processes.json', mtime: 0 },
   { path: join(PROJECT_DIR, 'processes.nix'), label: 'processes.nix', mtime: 0 },
   { path: join(PROJECT_DIR, 'devdash.config.json'), label: 'devdash.config.json', mtime: 0 },
 ]

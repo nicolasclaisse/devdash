@@ -1,6 +1,6 @@
 # DevDash
 
-A lightweight web dashboard to launch and monitor a **process-compose / nix** dev environment. Start, stop, restart, and tail logs for any number of local processes defined in `processes.nix` — with per-group actions, orphan detection, port tracking, terminal, S3 browser, and system monitor.
+A lightweight web dashboard to launch and monitor a multi-process dev environment. Start, stop, restart, and tail logs for any number of local processes defined in `processes.nix` — with per-group actions, orphan detection, port tracking, terminal, S3 browser, and system monitor.
 
 Built with Vite + Hono. Picks the first free port starting at `52800` (so multiple instances coexist).
 
@@ -18,7 +18,7 @@ brew upgrade devdash
 
 ## Quickstart
 
-In any directory that contains a `processes.nix`:
+In any directory that contains a `processes.json` or a `processes.nix`:
 
 ```sh
 devdash
@@ -104,9 +104,51 @@ Ad-hoc one-off commands (e.g. `stripe listen`, a `pgweb` shortcut) are stored in
 }
 ```
 
-## Example `processes.nix`
+## Declaring processes
 
-DevDash parses the `processes` attrset in a `processes.nix` at the project root. Minimal example:
+DevDash reads its process list from **`processes.json`** at the project root, falling back to
+**`processes.nix`** when the JSON is absent. Both live next to `devdash.config.json`, whose `infra`
+and group entries are merged on top.
+
+### `processes.json` (recommended)
+
+Either a bare array, or an object with a `processes` key. Only `name` and `exec` are required.
+
+```json
+[
+  {
+    "name": "api",
+    "exec": "export PORT=4612\nexec yarn dev",
+    "working_dir": "backend/api",
+    "health_check": { "type": "http", "port": 4612, "path": "/health" }
+  },
+  {
+    "name": "front",
+    "exec": "exec yarn dev",
+    "working_dir": "apps/front",
+    "depends_on": { "api": "process_healthy" }
+  }
+]
+```
+
+| Field | Meaning |
+|---|---|
+| `name` | process id, and what `depends_on` refers to |
+| `exec` | the shell command; multiple lines are allowed, `exec` the last one |
+| `working_dir` | relative to the project root |
+| `depends_on` | `{ "<name>": "process_started \| process_healthy \| process_completed_successfully" }` |
+| `health_check` | `{ "type": "http", "port", "path" }` or `{ "type": "exec", "command" }` |
+| `brew` | formula to install before starting, for infra processes |
+
+> ⚠️ **Declare a `health_check` on anything others depend on.** Without one, DevDash treats the
+> process as healthy as soon as it is *running*, so a `process_healthy` dependency is satisfied
+> before the process actually serves anything.
+
+### `processes.nix` (legacy)
+
+Read when no `processes.json` is present. DevDash parses the `processes` attrset; the format comes
+from devenv, and cannot express `health_check` or `brew`.
+
 
 ```nix
 { ... }:

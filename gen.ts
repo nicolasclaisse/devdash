@@ -1,5 +1,9 @@
 /**
- * Reads processes.nix + services.nix and provides process definitions.
+ * Fournit les définitions de process, depuis `processes.json` s'il existe, sinon `processes.nix`.
+ *
+ * Le JSON est le format courant : il exprime `health_check` et `brew`, que la syntaxe nix ne sait
+ * pas dire. Le nix reste lu pour les projets qui n'ont pas migré - il vient de devenv, dont ces
+ * fichiers étaient les entrées.
  * Also generates process-compose.generated.yaml (kept for reference / fallback).
  * Never edit the generated file — edit the .nix sources instead.
  */
@@ -148,9 +152,26 @@ function parseProcessesNix(content: string): ProcessDef[] {
 
 // ── Public API ─────────────────────────────────────────────────────────────
 
+/** `processes.json` d'abord, `processes.nix` ensuite, rien si aucun des deux n'existe. */
+export function readProcessFile(projectDir: string): ProcessDef[] {
+  const json = join(projectDir, 'processes.json')
+  if (existsSync(json)) {
+    const brut = JSON.parse(readFileSync(json, 'utf-8')) as unknown
+    const liste = Array.isArray(brut) ? brut : (brut as { processes?: unknown }).processes
+    if (!Array.isArray(liste)) {
+      throw new Error('processes.json : attendu un tableau, ou un objet avec une clé `processes`')
+    }
+    return liste.map((p) => ({ ...(p as ProcessDef), depends_on: (p as ProcessDef).depends_on ?? {} }))
+  }
+
+  const nix = join(projectDir, 'processes.nix')
+  if (existsSync(nix)) return parseProcessesNix(readFileSync(nix, 'utf-8'))
+
+  return []
+}
+
 export function getProcessDefs(projectDir: string, services: ServiceDef[] = []): ProcessDef[] {
-  const nixContent = readFileSync(join(projectDir, 'processes.nix'), 'utf-8')
-  const fromNix = parseProcessesNix(nixContent)
+  const fromNix = readProcessFile(projectDir)
   const fromServices: ProcessDef[] = services.map(s => ({
     name: s.name,
     exec: s.exec,
@@ -174,7 +195,7 @@ export function needsRegen(opts: GenOptions): boolean {
   const { projectDir, outputPath } = opts
   if (!existsSync(outputPath)) return true
   const outMtime = statSync(outputPath).mtimeMs
-  for (const f of ['processes.nix', 'services.nix']) {
+  for (const f of ['processes.json', 'processes.nix', 'services.nix']) {
     const src = join(projectDir, f)
     if (existsSync(src) && statSync(src).mtimeMs > outMtime) return true
   }

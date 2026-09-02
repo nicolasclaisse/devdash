@@ -1,6 +1,6 @@
 {
   "name": "@ncl/devdash",
-  "version": "0.8.0",
+  "version": "0.9.0",
   "description": "A web dashboard to launch and monitor a process-compose/nix dev environment — start/stop/restart processes, tail logs, browse ports, S3, system usage.",
   "type": "module",
   "bin": {
@@ -23,7 +23,14 @@
     "deploy": "bash deploy.sh",
     "postinstall": "chmod +x node_modules/node-pty/prebuilds/darwin-arm64/spawn-helper 2>/dev/null || true"
   },
-  "keywords": ["dev", "dashboard", "process-compose", "nix", "devenv", "monitor"],
+  "keywords": [
+    "dev",
+    "dashboard",
+    "process-compose",
+    "nix",
+    "devenv",
+    "monitor"
+  ],
   "author": "Nicolas Claisse",
   "license": "MIT",
   "repository": {
