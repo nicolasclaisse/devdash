@@ -8,8 +8,8 @@ function abort(msg) {
 }
 
 export function installApp(pkgRoot, projectDir, opts = {}) {
-  if (!existsSync(join(projectDir, 'processes.nix'))) {
-    abort(`processes.nix not found in ${projectDir}`)
+  if (!existsSync(join(projectDir, 'processes.json')) && !existsSync(join(projectDir, 'processes.nix'))) {
+    abort(`neither processes.json nor processes.nix found in ${projectDir}`)
   }
 
   const skeleton = join(pkgRoot, 'DevDash.app')

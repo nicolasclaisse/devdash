@@ -1,9 +1,9 @@
 /**
- * Fournit les définitions de process, depuis `processes.json` s'il existe, sinon `processes.nix`.
+ * Provides process definitions, from `processes.json` when present, otherwise `processes.nix`.
  *
- * Le JSON est le format courant : il exprime `health_check` et `brew`, que la syntaxe nix ne sait
- * pas dire. Le nix reste lu pour les projets qui n'ont pas migré - il vient de devenv, dont ces
- * fichiers étaient les entrées.
+ * JSON is the current format: it expresses `health_check` and `brew`, which the nix syntax cannot.
+ * The nix reader stays for projects that have not migrated - it comes from devenv, where those
+ * files were the inputs.
  * Also generates process-compose.generated.yaml (kept for reference / fallback).
  * Never edit the generated file — edit the .nix sources instead.
  */
@@ -152,16 +152,16 @@ function parseProcessesNix(content: string): ProcessDef[] {
 
 // ── Public API ─────────────────────────────────────────────────────────────
 
-/** `processes.json` d'abord, `processes.nix` ensuite, rien si aucun des deux n'existe. */
+/** `processes.json` first, `processes.nix` next, nothing when neither exists. */
 export function readProcessFile(projectDir: string): ProcessDef[] {
   const json = join(projectDir, 'processes.json')
   if (existsSync(json)) {
-    const brut = JSON.parse(readFileSync(json, 'utf-8')) as unknown
-    const liste = Array.isArray(brut) ? brut : (brut as { processes?: unknown }).processes
-    if (!Array.isArray(liste)) {
-      throw new Error('processes.json : attendu un tableau, ou un objet avec une clé `processes`')
+    const parsed = JSON.parse(readFileSync(json, 'utf-8')) as unknown
+    const entries = Array.isArray(parsed) ? parsed : (parsed as { processes?: unknown }).processes
+    if (!Array.isArray(entries)) {
+      throw new Error('processes.json: expected an array, or an object with a `processes` key')
     }
-    return liste.map((p) => ({ ...(p as ProcessDef), depends_on: (p as ProcessDef).depends_on ?? {} }))
+    return entries.map((p) => ({ ...(p as ProcessDef), depends_on: (p as ProcessDef).depends_on ?? {} }))
   }
 
   const nix = join(projectDir, 'processes.nix')
@@ -171,7 +171,7 @@ export function readProcessFile(projectDir: string): ProcessDef[] {
 }
 
 export function getProcessDefs(projectDir: string, services: ServiceDef[] = []): ProcessDef[] {
-  const fromNix = readProcessFile(projectDir)
+  const fromFile = readProcessFile(projectDir)
   const fromServices: ProcessDef[] = services.map(s => ({
     name: s.name,
     exec: s.exec,
@@ -180,7 +180,7 @@ export function getProcessDefs(projectDir: string, services: ServiceDef[] = []):
     health_check: s.health_check,
     brew: s.brew,
   }))
-  return [...fromServices, ...fromNix]
+  return [...fromServices, ...fromFile]
 }
 
 // ── Needsregen / generate yaml (kept for reference) ───────────────────────
