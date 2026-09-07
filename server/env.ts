@@ -12,8 +12,8 @@ function resolveProjectDir(): string {
 
 export const PROJECT_DIR = resolveProjectDir()
 
-if (!existsSync(join(PROJECT_DIR, 'processes.nix'))) {
-  console.error(`[devdash] processes.nix not found in ${PROJECT_DIR}`)
+if (!existsSync(join(PROJECT_DIR, 'processes.json')) && !existsSync(join(PROJECT_DIR, 'processes.nix'))) {
+  console.error(`[devdash] neither processes.json nor processes.nix found in ${PROJECT_DIR}`)
   console.error(`[devdash] run \`devdash <project-dir>\` or set DEVDASH_PROJECT=<dir>`)
   process.exit(1)
 }
@@ -35,10 +35,25 @@ function pickFreePort(start: number, max = 100): number {
   throw new Error(`[devdash] no free port found in ${start}-${start + max - 1}`)
 }
 
+/**
+ * A project can pin the port its dashboard answers on, via `serverPort` in devdash.config.json.
+ * Read here rather than through loadConfig() because config.ts imports this module.
+ */
+function portFromConfig(): number | null {
+  const path = join(PROJECT_DIR, 'devdash.config.json')
+  if (!existsSync(path)) return null
+  try {
+    const { serverPort } = JSON.parse(readFileSync(path, 'utf8')) as { serverPort?: unknown }
+    return Number.isInteger(serverPort) && (serverPort as number) > 0 ? (serverPort as number) : null
+  } catch {
+    return null
+  }
+}
+
 export const DEVENV_BIN = join(PROJECT_DIR, '.devenv/profile/bin')
 export const SERVER_PORT = process.env.SERVER_PORT
   ? Number(process.env.SERVER_PORT)
-  : pickFreePort(52800)
+  : (portFromConfig() ?? pickFreePort(52800))
 
 // Spawned processes must run the node version the project pins (.nvmrc), not whatever node happens to be first on the system PATH.
 function resolveProjectNodeBin(projectDir: string): string | null {

@@ -34,6 +34,8 @@ export interface S3Config {
 }
 
 export interface DevDashConfig {
+  /** Port the dashboard listens on. Overridden by the SERVER_PORT env var; free port if unset. */
+  serverPort?: number
   name: string
   devenv: boolean
   logsDir: string

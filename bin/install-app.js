@@ -55,8 +55,10 @@ export PATH="/usr/local/bin:/opt/homebrew/bin:/opt/homebrew/sbin:$HOME/.nvm/vers
 export DEVDASH_PROJECT=${JSON.stringify(projectDir)}
 LOG="/tmp/devdash-${safeLabel}.log"
 
-# Kill any previous devdash for THIS project (other instances on other ports keep running)
-pgrep -fl devdash | grep -F "$DEVDASH_PROJECT" | awk '{print $1}' | xargs kill 2>/dev/null
+# Kill any previous devdash for THIS project (other instances on other ports keep running).
+# The path is anchored at end of line: a plain substring match would let a parent project
+# (e.g. ~/project) also kill the sub-projects nested inside it.
+pgrep -fl devdash | grep -E "devdash \${DEVDASH_PROJECT}/?\\$" | awk '{print $1}' | xargs kill 2>/dev/null
 sleep 1
 : > "$LOG"
 
