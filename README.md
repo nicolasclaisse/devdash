@@ -85,6 +85,7 @@ DevDash runs out of the box with sensible defaults. To customize, drop a `devdas
 | Field | Purpose |
 |---|---|
 | `name` | Displayed in the header and browser title. |
+| `serverPort` | Port the dashboard listens on. Without it DevDash takes the first free port from 52800, which depends on start order when several projects run side by side. Overridden by the `SERVER_PORT` env var. |
 | `devenv` | If `true`, prepends `.devenv/profile/bin` to the PATH of every spawned process (so processes can find devenv-installed binaries without absolute paths). Default: `false`. |
 | `groups` | UI grouping for the sidebar. Each entry has a `match` spec: `in` (array), `startsWith`, `endsWith`, `equals`, or `regex`. Groups are evaluated in order; first match wins. |
 | `ports` | Labels for known ports in the "Ports" panel. Any additional listening port on the machine is shown with its command name. |

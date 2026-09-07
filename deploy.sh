@@ -6,7 +6,7 @@ cd "$(dirname "$0")"
 trap '' TERM HUP
 
 REPO_DIR="$(cd "$(dirname "$0")" && pwd)"
-PROJECT_DIR="${1:-$(dirname "$REPO_DIR")/dev-launcher}"
+PROJECT_DIR="${1:-$PWD}"
 PROJECT_DIR="$(cd "$PROJECT_DIR" && pwd)"
 RAW_LABEL="$(basename "$PROJECT_DIR")"
 LABEL="$(echo "$RAW_LABEL" | tr '-' '\n' | awk '{print toupper(substr($0,1,1)) substr($0,2)}' | tr -d '\n')"
