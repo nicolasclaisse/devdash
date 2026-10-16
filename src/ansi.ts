@@ -20,7 +20,7 @@ interface SgrState {
 const RESET: SgrState = { fg: null, bg: null, bold: false, dim: false, italic: false, underline: false, inverse: false, strike: false }
 
 // ESC [ params intermediates final → CSI (SGR when the final byte is "m")
-// ESC [ params <end of line>       → CSI cut by a chunk boundary: dropped
+// ESC [ params <end of line>       → malformed/incomplete CSI: dropped
 // ESC ] … BEL | ESC \              → OSC (hyperlinks, window title…)
 // ESC ( x | ESC ) x                → charset selection
 // ESC x                            → other single-char sequences (ESC c = full reset, …)
