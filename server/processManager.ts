@@ -5,6 +5,7 @@ import { PROJECT_DIR, DEVENV_BIN, SPAWN_ENV } from './env.js'
 import { loadConfig, inlineServices, autostartServices } from './config.js'
 import { log, broadcast } from './sse.js'
 import { appendLog, readLogs, clearLog, writePid, removePid } from './logWriter.js'
+import { LogLineBuffer } from './logLineBuffer.js'
 
 export type ProcessStatus = 'stopped' | 'starting' | 'running' | 'healthy' | 'completed' | 'failed'
 
@@ -163,15 +164,26 @@ export class ProcessManager {
 
     let stopped = false
 
-    const onData = (data: Buffer) => {
-      if (stopped) return
-      for (const line of data.toString().split('\n')) {
-        if (line.trim()) this.addLog(name, line)
-      }
+    const onLine = (line: string) => {
+      if (line.trim()) this.addLog(name, line)
+    }
+    const stdoutLogs = new LogLineBuffer(onLine)
+    const stderrLogs = new LogLineBuffer(onLine)
+    const onStdout = (data: Buffer) => {
+      if (!stopped) stdoutLogs.write(data)
+    }
+    const onStderr = (data: Buffer) => {
+      if (!stopped) stderrLogs.write(data)
+    }
+    const flushLogs = () => {
+      stdoutLogs.end()
+      stderrLogs.end()
     }
 
     const onExit = (code: number | null) => {
       if (stopped) return
+      flushLogs()
+      stopped = true
       s.pid = undefined
       s.child = undefined
       s.exitCode = code ?? -1
@@ -184,16 +196,18 @@ export class ProcessManager {
       }
     }
 
-    child.stdout?.on('data', onData)
-    child.stderr?.on('data', onData)
-    child.on('exit', onExit)
+    child.stdout?.on('data', onStdout)
+    child.stderr?.on('data', onStderr)
+    // Wait until both output streams have drained before flushing their final lines.
+    child.on('close', onExit)
     child.on('error', (err) => { if (!stopped) this.addLog(name, `[error] ${err.message}`) })
 
     s.removeListeners = () => {
+      if (!stopped) flushLogs()
       stopped = true
-      child.stdout?.removeListener('data', onData)
-      child.stderr?.removeListener('data', onData)
-      child.removeListener('exit', onExit)
+      child.stdout?.removeListener('data', onStdout)
+      child.stderr?.removeListener('data', onStderr)
+      child.removeListener('close', onExit)
     }
 
     setTimeout(() => {

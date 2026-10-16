@@ -1,5 +1,6 @@
 import type { Process } from '../types'
 import { getLogs, clearLogs } from '../api'
+import { AnsiRenderer } from '../ansi'
 
 export class LogViewer {
   private el: HTMLElement
@@ -9,6 +10,8 @@ export class LogViewer {
   private autoScroll = true
   private es: EventSource | null = null
   private urlFor: (name: string) => string | null = () => null
+  private ansi = new AnsiRenderer()
+  private visible = 0
 
   constructor(container: HTMLElement, _onAction: () => void) {
     this.el = container
@@ -23,6 +26,7 @@ export class LogViewer {
     this.name = name
     this.lines = []
     this.offset = 0
+    this.ansi.reset()
     this.renderShell(process)
     await this.fetchLogs()
     this.startSSE(name)
@@ -52,16 +56,23 @@ export class LogViewer {
     const panel = this.el.querySelector<HTMLElement>('#log-panel')
     const count = this.el.querySelector<HTMLElement>('#log-count')
     if (!panel) return
-    if (count) count.textContent = `${this.lines.length} lines`
-    const div = document.createElement('div')
-    div.className = `log-line ${colorLine(line)}`
-    div.textContent = line
-    panel.appendChild(div)
-    if (panel.children.length > 2000) panel.firstChild?.remove()
+    const html = this.lineHtml(line)
+    if (!html) return
+    panel.insertAdjacentHTML('beforeend', html)
+    this.visible++
+    if (panel.children.length > 2000) { panel.firstChild?.remove(); this.visible-- }
+    if (count) count.textContent = `${this.visible} lines`
     if (this.autoScroll) {
       const atBottom = panel.scrollHeight - panel.scrollTop - panel.clientHeight < 50
       if (atBottom) requestAnimationFrame(() => { panel.scrollTop = panel.scrollHeight })
     }
+  }
+
+  /** One rendered line, or null when nothing remains once escape sequences are stripped. */
+  private lineHtml(line: string): string | null {
+    const { html, text } = this.ansi.render(line)
+    if (text.trim() === '') return null
+    return `<div class="log-line ${colorLine(text)}">${html}</div>`
   }
 
   showEmpty() {
@@ -96,6 +107,7 @@ export class LogViewer {
   showCustomLogs(name: string, logs: string[]) {
     this.stop()
     this.name = null
+    const custom = new AnsiRenderer()
     this.el.innerHTML = `
       <div class="log-header">
         <span class="proc-name">${name}</span>
@@ -105,7 +117,7 @@ export class LogViewer {
         <span>${logs.length} lines</span>
       </div>
       <div class="log-panel" id="log-panel">
-        ${logs.map(l => `<div class="log-line">${escHtml(l)}</div>`).join('')}
+        ${logs.map(l => `<div class="log-line">${custom.render(l).html}</div>`).join('')}
       </div>
     `
     const panel = this.el.querySelector<HTMLElement>('#log-panel')
@@ -174,10 +186,11 @@ export class LogViewer {
     const panel = this.el.querySelector<HTMLElement>('#log-panel')
     const count = this.el.querySelector<HTMLElement>('#log-count')
     if (!panel) return
-    if (count) count.textContent = `${this.lines.length} lines`
-    panel.innerHTML = this.lines.map((line) =>
-      `<div class="log-line ${colorLine(line)}">${escHtml(line)}</div>`
-    ).join('')
+    this.ansi.reset()
+    const rendered = this.lines.map((line) => this.lineHtml(line)).filter((html): html is string => html !== null)
+    this.visible = rendered.length
+    if (count) count.textContent = `${this.visible} lines`
+    panel.innerHTML = rendered.join('')
     if (this.autoScroll) requestAnimationFrame(() => { panel.scrollTop = panel.scrollHeight })
   }
 
@@ -210,10 +223,6 @@ function colorLine(line: string) {
   if (l.includes('warn')) return 'warn'
   if (l.includes('info') || l.includes('ready') || l.includes('listening') || l.includes('started')) return 'info'
   return ''
-}
-
-function escHtml(s: string) {
-  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
 }
 
 function procStats(p: Process): string {
