@@ -13,6 +13,7 @@ import {
 } from './api'
 import { Sidebar } from './components/sidebar'
 import { LogViewer } from './components/logviewer'
+import { ansiToHtml } from './ansi'
 import { setGroups, setInlineServices } from './groups'
 import type { Process, CustomCommands } from './types'
 
@@ -261,9 +262,11 @@ function connectSse() {
 }
 
 function appendSpawnLog(line: string) {
+  const { html, text } = ansiToHtml(line)
+  if (text.trim() === '') return
   const div = document.createElement('div')
   div.className = 'log-line'
-  div.textContent = line
+  div.innerHTML = html
   spawnLog.appendChild(div)
   while (spawnLog.children.length > 500) spawnLog.removeChild(spawnLog.firstChild!)
   spawnLog.scrollTop = spawnLog.scrollHeight
