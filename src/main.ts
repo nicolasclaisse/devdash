@@ -7,7 +7,7 @@ declare global {
 }
 import { TerminalPane } from './components/terminal'
 import {
-  getProcesses, startGroup, stopGroup,
+  getProcesses, startGroup, stopGroup, stopAllProcesses,
   getCustomCommands, saveCustomCommands, startCustomCommand, stopCustomCommand,
   restartProcess, getPorts,
 } from './api'
@@ -105,6 +105,18 @@ sidebar.setStopGroupHandler(async (_groupId, members) => {
   appendSpawnLog(`[devdash] Stopping group: ${members.join(', ')}`)
   await stopGroup(members)
   setTimeout(refresh, 1000)
+})
+
+sidebar.setStopAllHandler(async () => {
+  appendSpawnLog('[devdash] Stopping all processes')
+  try {
+    await stopAllProcesses()
+  } catch (err) {
+    appendSpawnLog(`[devdash] ${err instanceof Error ? err.message : 'Could not stop all processes'}`)
+    alert('Could not stop all processes. Please try again.')
+  } finally {
+    await refreshCustom()
+  }
 })
 
 sidebar.setActionHandler(refresh)

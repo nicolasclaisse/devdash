@@ -22,6 +22,8 @@ interface ProcessState {
   restarts: number
   startedAt?: Date
   removeListeners?: () => void
+  startAttempt?: symbol
+  restartTimer?: ReturnType<typeof setTimeout>
 }
 
 export class ProcessManager {
@@ -92,12 +94,12 @@ export class ProcessManager {
     return false
   }
 
-  private async waitFor(name: string, condition: string, timeoutMs = 120_000): Promise<boolean> {
+  private async waitFor(name: string, condition: string, isCurrent: () => boolean, timeoutMs = 120_000): Promise<boolean> {
     const start = Date.now()
     const delay = (ms: number) => new Promise<void>(r => setTimeout(r, ms))
     const state = this.states.get(name)
 
-    while (Date.now() - start < timeoutMs) {
+    while (isCurrent() && Date.now() - start < timeoutMs) {
       const status = this.getStatus(name)
 
       if (condition === 'process_completed_successfully') {
@@ -243,6 +245,9 @@ export class ProcessManager {
     if (['running', 'healthy', 'starting'].includes(s.status)) return
 
     // Mark as starting immediately to prevent concurrent startOne calls
+    const attempt = Symbol()
+    s.startAttempt = attempt
+    const isCurrent = () => s.startAttempt === attempt
     s.status = 'starting'
 
     // Bring up autostart-group services (dependency providers) and wait until healthy
@@ -254,7 +259,8 @@ export class ProcessManager {
         }
         const condition = this.states.get(serviceName)?.def.health_check ? 'process_healthy' : 'process_started'
         log(`[devdash] ${name} waiting for autostart ${serviceName} (${condition})`)
-        const ok = await this.waitFor(serviceName, condition)
+        const ok = await this.waitFor(serviceName, condition, isCurrent)
+        if (!isCurrent()) return
         if (!ok) { log(`[devdash] ${name} autostart ${serviceName} not satisfied — aborting`); s.status = 'failed'; return }
       }
     }
@@ -265,7 +271,8 @@ export class ProcessManager {
         this.startOne(dep).catch((e: Error) => log(`[devdash] ${dep} error: ${e.message}`))
       }
       log(`[devdash] ${name} waiting for ${dep} (${condition})`)
-      const ok = await this.waitFor(dep, condition)
+      const ok = await this.waitFor(dep, condition, isCurrent)
+      if (!isCurrent()) return
       if (!ok) { log(`[devdash] ${name} dep ${dep} not satisfied — aborting`); s.status = 'failed'; return }
     }
 
@@ -297,7 +304,14 @@ export class ProcessManager {
 
   stop(name: string): void {
     const s = this.states.get(name)
-    if (!s?.child) return
+    if (!s) return
+    s.startAttempt = undefined
+    clearTimeout(s.restartTimer)
+    s.restartTimer = undefined
+    if (!s.child) {
+      if (s.status === 'starting') s.status = 'stopped'
+      return
+    }
     const pid = s.child.pid
     s.removeListeners?.()
     s.removeListeners = undefined
@@ -320,7 +334,12 @@ export class ProcessManager {
 
   restart(name: string): void {
     this.stop(name)
-    setTimeout(() => this.startOne(name), 1000)
+    const s = this.states.get(name)
+    if (!s) return
+    s.restartTimer = setTimeout(() => {
+      s.restartTimer = undefined
+      this.startOne(name)
+    }, 1000)
   }
 
   isAnyRunning(): boolean {

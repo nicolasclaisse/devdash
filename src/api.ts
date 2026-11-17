@@ -30,6 +30,11 @@ export async function stopProcess(name: string): Promise<void> {
   await fetch(`${SHELL_API}/stop/${name}`, { method: 'POST' })
 }
 
+export async function stopAllProcesses(): Promise<void> {
+  const res = await fetch(`${SHELL_API}/stop-all`, { method: 'POST' })
+  if (!res.ok) throw new Error('Could not stop all processes')
+}
+
 export async function restartProcess(name: string): Promise<void> {
   await fetch(`${SHELL_API}/restart/${name}`, { method: 'POST' })
 }
