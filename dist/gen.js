@@ -1,5 +1,9 @@
 /**
- * Reads processes.nix + services.nix and provides process definitions.
+ * Provides process definitions, from `processes.json` when present, otherwise `processes.nix`.
+ *
+ * JSON is the current format: it expresses `health_check` and `brew`, which the nix syntax cannot.
+ * The nix reader stays for projects that have not migrated - it comes from devenv, where those
+ * files were the inputs.
  * Also generates process-compose.generated.yaml (kept for reference / fallback).
  * Never edit the generated file — edit the .nix sources instead.
  */
@@ -109,9 +113,24 @@ function parseProcessesNix(content) {
     return result;
 }
 // ── Public API ─────────────────────────────────────────────────────────────
+/** `processes.json` first, `processes.nix` next, nothing when neither exists. */
+export function readProcessFile(projectDir) {
+    const json = join(projectDir, 'processes.json');
+    if (existsSync(json)) {
+        const parsed = JSON.parse(readFileSync(json, 'utf-8'));
+        const entries = Array.isArray(parsed) ? parsed : parsed.processes;
+        if (!Array.isArray(entries)) {
+            throw new Error('processes.json: expected an array, or an object with a `processes` key');
+        }
+        return entries.map((p) => ({ ...p, depends_on: p.depends_on ?? {} }));
+    }
+    const nix = join(projectDir, 'processes.nix');
+    if (existsSync(nix))
+        return parseProcessesNix(readFileSync(nix, 'utf-8'));
+    return [];
+}
 export function getProcessDefs(projectDir, services = []) {
-    const nixContent = readFileSync(join(projectDir, 'processes.nix'), 'utf-8');
-    const fromNix = parseProcessesNix(nixContent);
+    const fromFile = readProcessFile(projectDir);
     const fromServices = services.map(s => ({
         name: s.name,
         exec: s.exec,
@@ -120,14 +139,14 @@ export function getProcessDefs(projectDir, services = []) {
         health_check: s.health_check,
         brew: s.brew,
     }));
-    return [...fromServices, ...fromNix];
+    return [...fromServices, ...fromFile];
 }
 export function needsRegen(opts) {
     const { projectDir, outputPath } = opts;
     if (!existsSync(outputPath))
         return true;
     const outMtime = statSync(outputPath).mtimeMs;
-    for (const f of ['processes.nix', 'services.nix']) {
+    for (const f of ['processes.json', 'processes.nix', 'services.nix']) {
         const src = join(projectDir, f);
         if (existsSync(src) && statSync(src).mtimeMs > outMtime)
             return true;

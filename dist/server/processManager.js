@@ -5,6 +5,7 @@ import { PROJECT_DIR, DEVENV_BIN, SPAWN_ENV } from './env.js';
 import { loadConfig, inlineServices, autostartServices } from './config.js';
 import { log, broadcast } from './sse.js';
 import { appendLog, readLogs, clearLog, writePid, removePid } from './logWriter.js';
+import { LogLineBuffer } from './logLineBuffer.js';
 function notify(title, message) {
     spawnSync('osascript', ['-e', `display notification "${message}" with title "${title}"`], { stdio: 'ignore' });
 }
@@ -81,11 +82,11 @@ export class ProcessManager {
         catch { /* not healthy yet */ }
         return false;
     }
-    async waitFor(name, condition, timeoutMs = 120_000) {
+    async waitFor(name, condition, isCurrent, timeoutMs = 120_000) {
         const start = Date.now();
         const delay = (ms) => new Promise(r => setTimeout(r, ms));
         const state = this.states.get(name);
-        while (Date.now() - start < timeoutMs) {
+        while (isCurrent() && Date.now() - start < timeoutMs) {
             const status = this.getStatus(name);
             if (condition === 'process_completed_successfully') {
                 if (status === 'completed')
@@ -153,17 +154,29 @@ export class ProcessManager {
         if (child.pid)
             writePid(name, child.pid);
         let stopped = false;
-        const onData = (data) => {
-            if (stopped)
-                return;
-            for (const line of data.toString().split('\n')) {
-                if (line.trim())
-                    this.addLog(name, line);
-            }
+        const onLine = (line) => {
+            if (line.trim())
+                this.addLog(name, line);
+        };
+        const stdoutLogs = new LogLineBuffer(onLine);
+        const stderrLogs = new LogLineBuffer(onLine);
+        const onStdout = (data) => {
+            if (!stopped)
+                stdoutLogs.write(data);
+        };
+        const onStderr = (data) => {
+            if (!stopped)
+                stderrLogs.write(data);
+        };
+        const flushLogs = () => {
+            stdoutLogs.end();
+            stderrLogs.end();
         };
         const onExit = (code) => {
             if (stopped)
                 return;
+            flushLogs();
+            stopped = true;
             s.pid = undefined;
             s.child = undefined;
             s.exitCode = code ?? -1;
@@ -176,16 +189,19 @@ export class ProcessManager {
                 log(`[devdash] ${name} crashed — if the binary is missing, try: brew install ${def.brew}`);
             }
         };
-        child.stdout?.on('data', onData);
-        child.stderr?.on('data', onData);
-        child.on('exit', onExit);
+        child.stdout?.on('data', onStdout);
+        child.stderr?.on('data', onStderr);
+        // Wait until both output streams have drained before flushing their final lines.
+        child.on('close', onExit);
         child.on('error', (err) => { if (!stopped)
             this.addLog(name, `[error] ${err.message}`); });
         s.removeListeners = () => {
+            if (!stopped)
+                flushLogs();
             stopped = true;
-            child.stdout?.removeListener('data', onData);
-            child.stderr?.removeListener('data', onData);
-            child.removeListener('exit', onExit);
+            child.stdout?.removeListener('data', onStdout);
+            child.stderr?.removeListener('data', onStderr);
+            child.removeListener('close', onExit);
         };
         setTimeout(() => {
             if (s.status === 'starting')
@@ -226,6 +242,9 @@ export class ProcessManager {
         if (['running', 'healthy', 'starting'].includes(s.status))
             return;
         // Mark as starting immediately to prevent concurrent startOne calls
+        const attempt = Symbol();
+        s.startAttempt = attempt;
+        const isCurrent = () => s.startAttempt === attempt;
         s.status = 'starting';
         // Bring up autostart-group services (dependency providers) and wait until healthy
         if (!this.autostartNames.has(name)) {
@@ -236,7 +255,9 @@ export class ProcessManager {
                 }
                 const condition = this.states.get(serviceName)?.def.health_check ? 'process_healthy' : 'process_started';
                 log(`[devdash] ${name} waiting for autostart ${serviceName} (${condition})`);
-                const ok = await this.waitFor(serviceName, condition);
+                const ok = await this.waitFor(serviceName, condition, isCurrent);
+                if (!isCurrent())
+                    return;
                 if (!ok) {
                     log(`[devdash] ${name} autostart ${serviceName} not satisfied — aborting`);
                     s.status = 'failed';
@@ -250,7 +271,9 @@ export class ProcessManager {
                 this.startOne(dep).catch((e) => log(`[devdash] ${dep} error: ${e.message}`));
             }
             log(`[devdash] ${name} waiting for ${dep} (${condition})`);
-            const ok = await this.waitFor(dep, condition);
+            const ok = await this.waitFor(dep, condition, isCurrent);
+            if (!isCurrent())
+                return;
             if (!ok) {
                 log(`[devdash] ${name} dep ${dep} not satisfied — aborting`);
                 s.status = 'failed';
@@ -283,8 +306,16 @@ export class ProcessManager {
     }
     stop(name) {
         const s = this.states.get(name);
-        if (!s?.child)
+        if (!s)
             return;
+        s.startAttempt = undefined;
+        clearTimeout(s.restartTimer);
+        s.restartTimer = undefined;
+        if (!s.child) {
+            if (s.status === 'starting')
+                s.status = 'stopped';
+            return;
+        }
         const pid = s.child.pid;
         s.removeListeners?.();
         s.removeListeners = undefined;
@@ -314,7 +345,13 @@ export class ProcessManager {
     }
     restart(name) {
         this.stop(name);
-        setTimeout(() => this.startOne(name), 1000);
+        const s = this.states.get(name);
+        if (!s)
+            return;
+        s.restartTimer = setTimeout(() => {
+            s.restartTimer = undefined;
+            this.startOne(name);
+        }, 1000);
     }
     isAnyRunning() {
         return [...this.states.values()].some(s => ['running', 'healthy', 'starting'].includes(s.status));

@@ -4,8 +4,12 @@ import { startProcess, stopProcess, restartProcess } from '../api'
 
 export class Sidebar {
   private el: HTMLElement
+  private stopAllButton: HTMLButtonElement
+  private toggleGroupsButton: HTMLButtonElement
   private collapsed = new Set<string>()
   private onSelect: (name: string) => void
+  private onStopAll: (() => Promise<void>) | null = null
+  private stoppingAll = false
   private onStartGroup: ((groupId: string, members: string[]) => void) | null = null
   private onStopGroup: ((groupId: string, members: string[]) => void) | null = null
   private onAction: (() => void) | null = null
@@ -25,11 +29,34 @@ export class Sidebar {
       <aside>
         <div class="sidebar-header">
           <span>Processes</span>
+          <div class="sidebar-actions">
+            <button type="button" class="sidebar-action sidebar-stop-all" title="Stop all processes" hidden disabled>Stop all</button>
+            <button type="button" class="sidebar-action sidebar-toggle-groups" title="Collapse all groups" aria-label="Collapse all groups">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="m7 4 5 5 5-5M7 20l5-5 5 5"/>
+              </svg>
+            </button>
+          </div>
         </div>
         <div class="process-list" id="process-list"></div>
       </aside>
     `
     this.el = container.querySelector('#process-list')!
+    this.stopAllButton = container.querySelector('.sidebar-stop-all')!
+    this.toggleGroupsButton = container.querySelector('.sidebar-toggle-groups')!
+    this.stopAllButton.addEventListener('click', async () => {
+      if (!this.onStopAll || this.stoppingAll) return
+      this.stoppingAll = true
+      this.stopAllButton.disabled = true
+      this.stopAllButton.textContent = 'Stopping…'
+      try {
+        await this.onStopAll()
+      } finally {
+        this.stoppingAll = false
+        this.stopAllButton.textContent = 'Stop all'
+        this.onAction?.()
+      }
+    })
   }
 
   setSelected(name: string | null) {
@@ -42,6 +69,10 @@ export class Sidebar {
 
   setStopGroupHandler(handler: (groupId: string, members: string[]) => void) {
     this.onStopGroup = handler
+  }
+
+  setStopAllHandler(handler: () => Promise<void>) {
+    this.onStopAll = handler
   }
 
   setActionHandler(handler: () => void) {
@@ -95,6 +126,8 @@ export class Sidebar {
 
   render(processes: Process[], search: string) {
     this.el.innerHTML = ''
+    this.stopAllButton.hidden = !processes.some(p => p.is_running) && !this.customCommands.some(c => c.running)
+    this.stopAllButton.disabled = this.stoppingAll || !this.onStopAll
 
     // Custom commands that match a known group label get merged in
     const mergedCustom = new Set<string>()
@@ -275,6 +308,27 @@ export class Sidebar {
       })
 
       this.el.appendChild(groupEl)
+    }
+
+    const groupKeys = new Set(regularProcesses.map(p => groupFor(p.name).id))
+    let hasCustomGroup = false
+    this.customCommands.forEach(cmd => {
+      const group = GROUPS.find(group => group.label === cmd.group)
+      groupKeys.add(group?.id ?? `custom:${cmd.group || 'Custom'}`)
+      if (!group) hasCustomGroup = true
+    })
+    if (!hasCustomGroup) groupKeys.add('custom:Custom')
+    const allCollapsed = Array.from(groupKeys).every(key => this.collapsed.has(key))
+    const toggleLabel = allCollapsed ? 'Expand all' : 'Collapse all'
+    this.toggleGroupsButton.title = `${toggleLabel} groups`
+    this.toggleGroupsButton.setAttribute('aria-label', `${toggleLabel} groups`)
+    this.toggleGroupsButton.querySelector('path')!.setAttribute('d', allCollapsed
+      ? 'm7 9 5-5 5 5M7 15l5 5 5-5'
+      : 'm7 4 5 5 5-5M7 20l5-5 5 5')
+    this.toggleGroupsButton.onclick = () => {
+      if (allCollapsed) this.collapsed.clear()
+      else groupKeys.forEach(key => this.collapsed.add(key))
+      this.render(processes, search)
     }
   }
 }

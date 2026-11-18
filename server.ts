@@ -49,6 +49,7 @@ app.post('/shell/start/:process', (c) => { pm.startOne(c.req.param('process')); 
 app.post('/shell/stop/:process',  (c) => { pm.stop(c.req.param('process'));    return c.json({ ok: true }) })
 app.post('/shell/restart/:process', (c) => { pm.restart(c.req.param('process')); return c.json({ ok: true }) })
 app.post('/shell/start-all', (c) => { const { started, alreadyRunning } = pm.startAll(); return c.json({ ok: true, started, alreadyRunning }) })
+app.post('/shell/stop-all', (c) => { pm.stopAll(); return c.json({ ok: true }) })
 app.post('/shell/restart-running', (c) => {
   const services = pm.getServiceNames()
   const running = (pm.getAll() as { name: string; is_running: boolean }[])

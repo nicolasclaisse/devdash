@@ -19,6 +19,7 @@ const pm = new ProcessManager();
 pm.load();
 // Reload defs when processes.nix or devdash.config.json changes (poll-based, fs.watch is unreliable on macOS)
 const watchFiles = [
+    { path: join(PROJECT_DIR, 'processes.json'), label: 'processes.json', mtime: 0 },
     { path: join(PROJECT_DIR, 'processes.nix'), label: 'processes.nix', mtime: 0 },
     { path: join(PROJECT_DIR, 'devdash.config.json'), label: 'devdash.config.json', mtime: 0 },
 ];
@@ -48,6 +49,7 @@ app.post('/shell/start/:process', (c) => { pm.startOne(c.req.param('process')); 
 app.post('/shell/stop/:process', (c) => { pm.stop(c.req.param('process')); return c.json({ ok: true }); });
 app.post('/shell/restart/:process', (c) => { pm.restart(c.req.param('process')); return c.json({ ok: true }); });
 app.post('/shell/start-all', (c) => { const { started, alreadyRunning } = pm.startAll(); return c.json({ ok: true, started, alreadyRunning }); });
+app.post('/shell/stop-all', (c) => { pm.stopAll(); return c.json({ ok: true }); });
 app.post('/shell/restart-running', (c) => {
     const services = pm.getServiceNames();
     const running = pm.getAll()
